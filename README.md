@@ -1,5 +1,8 @@
 # Biscuit 🐕
 
+[![build](https://github.com/GithubUsername567/biscuit/actions/workflows/build.yml/badge.svg)](https://github.com/GithubUsername567/biscuit/actions)
+[![license: MIT](https://img.shields.io/badge/license-MIT-C98A4B.svg)](LICENSE)
+
 **The pixel pup that runs your Mac.** Hold a key, say the thing, Biscuit does it — opens apps, plays music, sets volume, writes notes — confirms out loud, then goes back to his corner.
 
 Local-first voice agent for macOS 14+: SwiftUI + AppKit, Ollama for the brain, on-device speech recognition, free neural TTS. No accounts, no telemetry.
@@ -69,3 +72,7 @@ Models.swift                   shared types + ToolExecutor (app/url/script/shell
 ```
 
 Conversation history is in-memory only (last 10 exchanges). Stubs marked TODO: WhisperKit, ScreenCaptureKit.
+
+## License & privacy
+
+MIT — see [LICENSE](LICENSE). Biscuit collects nothing; see [PRIVACY.md](PRIVACY.md).
