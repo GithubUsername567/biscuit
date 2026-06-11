@@ -20,6 +20,7 @@ final class OllamaService {
     3. After see_screen, click_element refers to the numbers from that most recent snapshot. If a number is gone, call see_screen again.
     4. Prefer the fast path when one exists (scripting), fall back to see/click for everything else.
     5. Only answer in plain text for pure knowledge questions. After finishing a task, confirm in ONE short sentence.
+    6. NEVER click install/download/"get the app"/"open in app"/sign-in/login/accept-cookies/subscribe/notification prompts. Elements flagged "⚠️ promo — do not click" are distractions; ignore them and find the real target (a song row, a Play button, the actual content). To play music, click a SONG or ARTIST result or a Play control — never an app-install button.
 
     FAST PATHS (use directly, no see_screen needed):
     - Open an app → open_app.

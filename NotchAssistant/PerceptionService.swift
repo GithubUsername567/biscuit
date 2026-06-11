@@ -23,10 +23,16 @@ enum PerceptionService {
         _ = AXIsProcessTrustedWithOptions(options)
     }
 
+    struct Target {
+        let point: CGPoint
+        let isPromo: Bool
+        let label: String
+    }
+
     /// Snapshot of the frontmost app: a numbered list of actionable elements
     /// plus the click targets keyed by that number. The model picks a number,
     /// we map it back to coordinates.
-    static func snapshot() -> (text: String, targets: [Int: CGPoint]) {
+    static func snapshot() -> (text: String, targets: [Int: Target]) {
         guard hasPermission else {
             return ("(Screen reading unavailable — grant Accessibility in System Settings.)", [:])
         }
@@ -44,14 +50,30 @@ enum PerceptionService {
             return ("Frontmost app: \(appName). No readable UI elements (this app may not expose accessibility info — a screenshot fallback would be needed).", [:])
         }
 
-        var targets: [Int: CGPoint] = [:]
+        var targets: [Int: Target] = [:]
         var lines = ["Frontmost app: \(appName)", "On-screen elements (use the [number] with click_element):"]
         for element in elements.prefix(80) {
-            targets[element.index] = element.center
+            let promo = isPromo(element.label)
+            targets[element.index] = Target(point: element.center, isPromo: promo, label: element.label)
             let label = element.label.isEmpty ? "(no label)" : element.label
-            lines.append("[\(element.index)] \(element.role): \(label)")
+            let flag = promo ? "  ⚠️ promo — do not click" : ""
+            lines.append("[\(element.index)] \(element.role): \(label)\(flag)")
         }
         return (lines.joined(separator: "\n"), targets)
+    }
+
+    /// Labels that are almost always interruptions, not the user's goal.
+    private static let promoPatterns = [
+        "install", "get the app", "open in app", "download the app", "add to home",
+        "sign in", "sign up", "log in", "login", "create account",
+        "accept all", "accept cookies", "reject all", "got it", "no thanks",
+        "subscribe", "start free trial", "upgrade to", "turn on notifications",
+        "allow notifications", "dismiss",
+    ]
+
+    private static func isPromo(_ label: String) -> Bool {
+        let lower = label.lowercased()
+        return promoPatterns.contains { lower.contains($0) }
     }
 
     // MARK: - Tree walk

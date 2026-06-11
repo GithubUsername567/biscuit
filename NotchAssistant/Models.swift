@@ -220,7 +220,7 @@ enum ToolExecutor {
 
     /// Click targets from the most recent `see_screen`, keyed by the [number]
     /// shown to the model.
-    @MainActor private static var lastTargets: [Int: CGPoint] = [:]
+    @MainActor private static var lastTargets: [Int: PerceptionService.Target] = [:]
 
     static var tools: [OllamaTool] {
         [
@@ -310,11 +310,14 @@ enum ToolExecutor {
 
         case "click_element":
             guard let number = intArg(args["number"]) else { return "Error: missing element number." }
-            let point = await MainActor.run { lastTargets[number] }
-            guard let point else {
+            let target = await MainActor.run { lastTargets[number] }
+            guard let target else {
                 return "Error: no element [\(number)] — call see_screen again first."
             }
-            await InputSynthesizer.click(at: point)
+            if target.isPromo {
+                return "Refused: [\(number)] (\"\(target.label)\") is an install/sign-in/cookie promo, not the task target. Pick a song row, an artist result, or a Play button instead."
+            }
+            await InputSynthesizer.click(at: target.point)
             try? await Task.sleep(for: .milliseconds(600))
             return "Clicked element [\(number)]. Call see_screen to verify the result."
 
