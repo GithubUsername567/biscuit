@@ -69,15 +69,19 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerD
                     .map { String(format: "%02X", $0) }.joined()
                 let connectionID = UUID().uuidString.replacingOccurrences(of: "-", with: "")
 
+                // Sec-MS-GEC-Version must match a current Edge build or the
+                // handshake is rejected with HTTP 403. Keep in sync with the
+                // edge-tts project if Microsoft tightens validation again.
+                let gecVersion = "1-143.0.3650.75"
                 guard let url = URL(string:
                     "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1" +
-                    "?TrustedClientToken=\(token)&Sec-MS-GEC=\(gec)&Sec-MS-GEC-Version=1-130.0.2849.68&ConnectionId=\(connectionID)"
+                    "?TrustedClientToken=\(token)&Sec-MS-GEC=\(gec)&Sec-MS-GEC-Version=\(gecVersion)&ConnectionId=\(connectionID)"
                 ) else { throw URLError(.badURL) }
 
                 var request = URLRequest(url: url)
                 request.setValue("chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold", forHTTPHeaderField: "Origin")
                 request.setValue(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0",
                     forHTTPHeaderField: "User-Agent"
                 )
 

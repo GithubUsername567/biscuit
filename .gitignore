@@ -3,3 +3,7 @@ DerivedData/
 .DS_Store
 xcuserdata/
 *.xcuserstate
+biscuit.key
+biscuit.crt
+biscuit.p12
+biscuit-cert.conf
