@@ -107,6 +107,15 @@ struct SettingsView: View {
                             NSWorkspace.shared.open(url)
                         }
                     }
+                    LabeledContent("Screen control", value: accessibilityStatus)
+                    Button("Open Accessibility Settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    Text("Accessibility lets Biscuit see and operate app interfaces (click buttons, type in fields) — needed for multi-step tasks like playing an artist on YouTube Music.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Text("Hold-to-talk needs Input Monitoring. Until granted (then relaunch), use ⌃⌥K to toggle listening instead.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -142,6 +151,10 @@ struct SettingsView: View {
         .onAppear {
             micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
         }
+    }
+
+    private var accessibilityStatus: String {
+        PerceptionService.hasPermission ? "Granted" : "Not granted"
     }
 
     private var micStatusText: String {

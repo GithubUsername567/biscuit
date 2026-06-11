@@ -78,7 +78,7 @@ final class AppState: ObservableObject {
 
         let model = self.model
         let baseURL = self.baseURL
-        let maxToolRounds = 6
+        let maxToolRounds = 12 // see→act→verify loops need more rounds
 
         generationTask = Task { [weak self] in
             guard let self else { return }
@@ -130,7 +130,7 @@ final class AppState: ObservableObject {
                     for call in pendingCalls {
                         self.messages.append(ChatMessage(
                             role: .tool,
-                            content: "⚙️ \(call.function.name)(\(call.compactArguments))"
+                            content: friendlyToolLabel(call)
                         ))
                         let result = await ToolExecutor.execute(call)
                         wire.append(OllamaMessage(role: ChatRole.tool.rawValue, content: result))
@@ -157,6 +157,19 @@ final class AppState: ObservableObject {
                 let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 self.reportError(message)
             }
+        }
+    }
+
+    private func friendlyToolLabel(_ call: OllamaToolCall) -> String {
+        let args = call.argumentsDictionary
+        switch call.function.name {
+        case "see_screen": return "👀 looking at the screen"
+        case "click_element": return "🖱️ clicking [\(args["number"]?.displayString ?? "?")]"
+        case "type_text": return "⌨️ typing “\(args["text"]?.displayString.prefix(40) ?? "")”"
+        case "press_key": return "⌨️ pressing \(args["key"]?.displayString ?? "")"
+        case "open_app": return "📂 opening \(args["name"]?.displayString ?? "app")"
+        case "open_url": return "🌐 opening a link"
+        default: return "⚙️ \(call.function.name)"
         }
     }
 

@@ -192,6 +192,7 @@
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Biscuit runs AppleScript to perform actions you ask for.";
+				INFOPLIST_KEY_NSAccessibilityUsageDescription = "Biscuit uses accessibility to see and operate app interfaces for the tasks you ask for.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Biscuit uses the microphone to hear your voice commands.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Biscuit transcribes your voice on-device so you can talk to the assistant.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -220,6 +221,7 @@
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Biscuit runs AppleScript to perform actions you ask for.";
+				INFOPLIST_KEY_NSAccessibilityUsageDescription = "Biscuit uses accessibility to see and operate app interfaces for the tasks you ask for.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Biscuit uses the microphone to hear your voice commands.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Biscuit transcribes your voice on-device so you can talk to the assistant.";
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -218,8 +218,47 @@ enum SettingsKeys {
 
 enum ToolExecutor {
 
+    /// Click targets from the most recent `see_screen`, keyed by the [number]
+    /// shown to the model.
+    @MainActor private static var lastTargets: [Int: CGPoint] = [:]
+
     static var tools: [OllamaTool] {
         [
+            OllamaTool(function: .init(
+                name: "see_screen",
+                description: "Look at what is currently on screen. Returns a numbered list of buttons, links, text fields, and rows in the frontmost app. Call this FIRST whenever a task needs interacting with an app's interface, and call it again after any action to verify the result before continuing.",
+                parameters: schema(properties: [:], required: [])
+            )),
+            OllamaTool(function: .init(
+                name: "click_element",
+                description: "Click an element by the [number] from the most recent see_screen result. Use this to press buttons, follow links, focus text fields, or pick a row.",
+                parameters: schema(
+                    properties: ["number": property(type: "integer", description: "The element number from see_screen.")],
+                    required: ["number"]
+                )
+            )),
+            OllamaTool(function: .init(
+                name: "type_text",
+                description: "Type text into whatever is currently focused (click a text field first). Set submit=true to press Return after typing, e.g. to run a search.",
+                parameters: schema(
+                    properties: [
+                        "text": property(description: "The text to type."),
+                        "submit": property(type: "boolean", description: "Press Return after typing. Default false."),
+                    ],
+                    required: ["text"]
+                )
+            )),
+            OllamaTool(function: .init(
+                name: "press_key",
+                description: "Press a single key or shortcut. key is one of: return, tab, escape, space, delete, up, down, left, right, or a letter. Optional modifiers: cmd, shift, option, control.",
+                parameters: schema(
+                    properties: [
+                        "key": property(description: "Key name or single letter."),
+                        "modifiers": property(description: "Space-separated modifiers, e.g. 'cmd shift'. Optional."),
+                    ],
+                    required: ["key"]
+                )
+            )),
             OllamaTool(function: .init(
                 name: "open_app",
                 description: "Launch or bring to front a macOS application by name, e.g. Safari, Notes, Spotify, Terminal.",
@@ -261,6 +300,42 @@ enum ToolExecutor {
     static func execute(_ call: OllamaToolCall) async -> String {
         let args = call.argumentsDictionary
         switch call.function.name {
+
+        case "see_screen":
+            return await MainActor.run {
+                let snap = PerceptionService.snapshot()
+                lastTargets = snap.targets
+                return snap.text
+            }
+
+        case "click_element":
+            guard let number = intArg(args["number"]) else { return "Error: missing element number." }
+            let point = await MainActor.run { lastTargets[number] }
+            guard let point else {
+                return "Error: no element [\(number)] — call see_screen again first."
+            }
+            await InputSynthesizer.click(at: point)
+            try? await Task.sleep(for: .milliseconds(600))
+            return "Clicked element [\(number)]. Call see_screen to verify the result."
+
+        case "type_text":
+            guard let text = args["text"]?.stringValue, !text.isEmpty else { return "Error: missing text." }
+            let submit = boolArg(args["submit"])
+            await InputSynthesizer.type(text)
+            if submit {
+                try? await Task.sleep(for: .milliseconds(150))
+                await InputSynthesizer.pressKey(keyCode: 36, modifiers: []) // Return
+            }
+            try? await Task.sleep(for: .milliseconds(600))
+            return submit ? "Typed and submitted. Call see_screen to verify." : "Typed the text."
+
+        case "press_key":
+            guard let key = args["key"]?.stringValue, !key.isEmpty else { return "Error: missing key." }
+            guard let code = InputSynthesizer.keyCode(for: key) else { return "Error: unknown key \"\(key)\"." }
+            let mods = InputSynthesizer.modifiers(from: args["modifiers"]?.stringValue ?? "")
+            await InputSynthesizer.pressKey(keyCode: code, modifiers: mods)
+            try? await Task.sleep(for: .milliseconds(400))
+            return "Pressed \(key)."
 
         case "open_app":
             guard let name = args["name"]?.stringValue, !name.isEmpty else {
@@ -331,6 +406,23 @@ enum ToolExecutor {
                     continuation.resume(returning: "Error (exit \(process.terminationStatus)): \(truncated.isEmpty ? "no output" : truncated)")
                 }
             }
+        }
+    }
+
+    private static func intArg(_ value: JSONValue?) -> Int? {
+        switch value {
+        case .number(let n): return Int(n)
+        case .string(let s): return Int(s)
+        default: return nil
+        }
+    }
+
+    private static func boolArg(_ value: JSONValue?) -> Bool {
+        switch value {
+        case .bool(let b): return b
+        case .string(let s): return s.lowercased() == "true"
+        case .number(let n): return n != 0
+        default: return false
         }
     }
 

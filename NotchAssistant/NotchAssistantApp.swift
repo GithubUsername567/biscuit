@@ -59,6 +59,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyManager.onFallbackToggle = { [weak self] in
             Task { @MainActor in self?.hotkeyPressed() }
         }
+        // Ask for Accessibility up front — needed to see and operate apps.
+        if !PerceptionService.hasPermission {
+            PerceptionService.requestPermission()
+        }
+
         hotkeyManager.start()
         if !hotkeyManager.usingEventTap {
             appState.notify("Hold ⌃+Fn needs Input Monitoring (System Settings → Privacy). Until then: ⌃⌥K. It activates by itself once granted.")
