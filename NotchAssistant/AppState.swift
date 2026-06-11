@@ -20,6 +20,9 @@ final class AppState: ObservableObject {
     private var generationTask: Task<Void, Never>?
     private var silenceTask: Task<Void, Never>?
     private var autoHideTask: Task<Void, Never>?
+    /// Set when finishListening is called before the async startListening has
+    /// actually begun capturing (quick hotkey taps) — applied once it starts.
+    private var pendingFinalize = false
 
     /// Keep the last 10 user/assistant exchanges in memory.
     private let maxMessages = 20
@@ -218,6 +221,7 @@ final class AppState: ObservableObject {
     func startListening() {
         interruptActivity()
         cancelAutoHide()
+        pendingFinalize = false
         Task {
             guard await audio.requestPermissions() else {
                 state = .error(AudioInputService.AudioInputError.permissionDenied.errorDescription ?? "Permission denied.")
@@ -236,8 +240,14 @@ final class AppState: ObservableObject {
                 }, onCompletion: { [weak self] result in
                     Task { @MainActor in self?.handleTranscription(result) }
                 })
-                // Give up if we never hear anything.
-                armSilenceTimer(10)
+                // A release that beat the async start: finalize now.
+                if pendingFinalize {
+                    pendingFinalize = false
+                    finishListening()
+                } else {
+                    // Give up if we never hear anything.
+                    armSilenceTimer(10)
+                }
             } catch {
                 let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 state = .error(message)
@@ -268,6 +278,12 @@ final class AppState: ObservableObject {
     }
 
     func finishListening() {
+        // Released before capture actually began — remember to finalize once
+        // startListening reaches the engine.
+        guard audio.isListening else {
+            pendingFinalize = true
+            return
+        }
         audio.stopAndFinalize()
     }
 

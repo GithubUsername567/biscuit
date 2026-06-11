@@ -11,6 +11,7 @@ final class AudioInputService: NSObject {
         case permissionDenied
         case recognizerUnavailable
         case noInputDevice
+        case noSpeech
 
         var errorDescription: String? {
             switch self {
@@ -20,6 +21,8 @@ final class AudioInputService: NSObject {
                 return "Speech recognition is unavailable on this Mac."
             case .noInputDevice:
                 return "No audio input device found."
+            case .noSpeech:
+                return "Didn't catch any speech."
             }
         }
     }
@@ -31,6 +34,7 @@ final class AudioInputService: NSObject {
     private var latestTranscript = ""
     private var completion: ((Result<String, Error>) -> Void)?
     private var tapInstalled = false
+    private var finalizeFallback: DispatchWorkItem?
 
     private(set) var isListening = false
 
@@ -106,12 +110,27 @@ final class AudioInputService: NSObject {
         guard isListening else { return }
         stopEngine()
         recognitionRequest?.endAudio()
-        // The recognition task handler delivers the final result from here.
+        // On-device recognition often never fires `isFinal` after endAudio —
+        // it just stops. Without a fallback the captured words are silently
+        // dropped. So if no final result lands quickly, deliver whatever we
+        // already heard.
+        let fallback = DispatchWorkItem { [weak self] in
+            guard let self, self.completion != nil else { return }
+            if self.latestTranscript.isEmpty {
+                self.finish(.failure(AudioInputError.noSpeech))
+            } else {
+                self.finish(.success(self.latestTranscript))
+            }
+        }
+        finalizeFallback = fallback
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: fallback)
     }
 
     /// Tears everything down without delivering a transcript.
     func cancelListening() {
         completion = nil
+        finalizeFallback?.cancel()
+        finalizeFallback = nil
         stopEngine()
         recognitionTask?.cancel()
         recognitionTask = nil
@@ -138,6 +157,8 @@ final class AudioInputService: NSObject {
     private func finish(_ result: Result<String, Error>) {
         guard let completion else { return }
         self.completion = nil
+        finalizeFallback?.cancel()
+        finalizeFallback = nil
         stopEngine()
         recognitionTask = nil
         recognitionRequest = nil
