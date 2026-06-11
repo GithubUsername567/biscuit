@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biscuit — the pixel pup that runs your Mac</title>
+<meta name="description" content="Biscuit is a local-first voice assistant for macOS. Hold a key, say the thing, Biscuit does it — then goes back to his corner.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --biscuit: #C98A4B;
+    --cocoa: #4A2E19;
+    --cream: #F2E4D0;
+    --charcoal: #15110C;
+    --charcoal-2: #1E1812;
+    --green: #4ADE80;
+    --amber: #F59E0B;
+    --blue: #60A5FA;
+    --red: #F87171;
+    --line: rgba(242, 228, 208, 0.10);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--charcoal);
+    color: var(--cream);
+    font-family: "Space Grotesk", system-ui, sans-serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+  .px { font-family: "Press Start 2P", monospace; }
+
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+  nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 0;
+  }
+  nav .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--cream); }
+  nav .brand canvas { image-rendering: pixelated; }
+  nav .brand span { font-size: 14px; letter-spacing: 1px; }
+  nav .links a {
+    color: var(--cream); opacity: .7; text-decoration: none; margin-left: 28px; font-size: 15px;
+  }
+  nav .links a:hover { opacity: 1; color: var(--biscuit); }
+
+  header.hero {
+    text-align: center;
+    padding: 72px 0 88px;
+    position: relative;
+  }
+  .hero .dog-stage {
+    width: 192px; height: 192px; margin: 0 auto 8px;
+    position: relative; cursor: pointer;
+  }
+  .hero .glow {
+    position: absolute; inset: 24px; border-radius: 50%;
+    background: var(--biscuit); opacity: 0; filter: blur(34px);
+    transition: opacity .35s, background .35s;
+  }
+  .hero .dog-stage:hover .glow { opacity: .35; background: var(--green); }
+  .hero canvas { position: relative; image-rendering: pixelated; }
+  .hero h1 {
+    font-size: clamp(28px, 6vw, 52px);
+    letter-spacing: 2px;
+    margin: 18px 0 18px;
+    color: var(--biscuit);
+    text-shadow: 4px 4px 0 rgba(0,0,0,.45);
+  }
+  .hero p.tag { font-size: clamp(17px, 2.6vw, 22px); font-weight: 500; }
+  .hero p.sub {
+    max-width: 600px; margin: 14px auto 36px; opacity: .72; font-size: 16.5px;
+  }
+  .kbd {
+    display: inline-block; padding: 2px 9px; border: 1px solid var(--line);
+    border-bottom-width: 3px; border-radius: 7px; background: var(--charcoal-2);
+    font-family: ui-monospace, monospace; font-size: .9em;
+  }
+  .cta-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    text-decoration: none; font-size: 12px; padding: 16px 26px; border-radius: 10px;
+    transition: transform .12s, box-shadow .12s;
+  }
+  .btn:active { transform: translateY(2px); }
+  .btn.primary {
+    background: var(--biscuit); color: var(--charcoal);
+    box-shadow: 0 5px 0 var(--cocoa);
+  }
+  .btn.primary:hover { filter: brightness(1.07); }
+  .btn.ghost {
+    color: var(--cream); border: 1px solid var(--line); background: var(--charcoal-2);
+    box-shadow: 0 5px 0 rgba(0,0,0,.4);
+  }
+  .btn.ghost:hover { border-color: var(--biscuit); color: var(--biscuit); }
+
+  section { padding: 76px 0; border-top: 1px solid var(--line); }
+  h2.px { font-size: clamp(17px, 3vw, 24px); margin-bottom: 14px; color: var(--cream); }
+  h2 .paw { color: var(--biscuit); }
+  .section-sub { opacity: .65; margin-bottom: 44px; max-width: 560px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .card {
+    background: var(--charcoal-2); border: 1px solid var(--line); border-radius: 14px;
+    padding: 26px 24px; transition: border-color .2s, transform .2s;
+  }
+  .card:hover { border-color: rgba(201,138,75,.45); transform: translateY(-3px); }
+  .card .emoji { font-size: 26px; }
+  .card h3 { margin: 12px 0 8px; font-size: 18px; }
+  .card p { opacity: .7; font-size: 15px; }
+  .card .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
+
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; counter-reset: step; }
+  .step {
+    border: 1px dashed rgba(201,138,75,.4); border-radius: 14px; padding: 26px 24px;
+  }
+  .step .n {
+    font-family: "Press Start 2P", monospace; color: var(--biscuit); font-size: 13px;
+    display: block; margin-bottom: 14px;
+  }
+  .step h3 { font-size: 17px; margin-bottom: 8px; }
+  .step p { opacity: .7; font-size: 15px; }
+
+  pre.install {
+    background: #0E0B08; border: 1px solid var(--line); border-radius: 12px;
+    padding: 24px; overflow-x: auto; font-size: 14.5px; line-height: 1.9;
+    font-family: ui-monospace, "SF Mono", monospace;
+  }
+  pre.install .c { color: rgba(242,228,208,.4); }
+  pre.install .p { color: var(--biscuit); user-select: none; }
+
+  .palette { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 26px; }
+  .swatch {
+    width: 42px; height: 42px; border-radius: 10px; border: 1px solid var(--line);
+    position: relative;
+  }
+  .swatch:hover::after {
+    content: attr(data-name); position: absolute; bottom: 52px; left: 50%; transform: translateX(-50%);
+    background: #000; color: var(--cream); font-size: 11px; white-space: nowrap;
+    padding: 4px 9px; border-radius: 6px;
+  }
+
+  footer {
+    border-top: 1px solid var(--line); padding: 44px 0 56px; text-align: center;
+    opacity: .75; font-size: 14px;
+  }
+  footer .px { font-size: 11px; color: var(--biscuit); display: block; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#">
+      <canvas id="dog-nav" width="16" height="16" style="width:32px;height:32px"></canvas>
+      <span class="px">BISCUIT</span>
+    </a>
+    <div class="links">
+      <a href="#tricks">Tricks</a>
+      <a href="#how">How it works</a>
+      <a href="#get">Get Biscuit</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="dog-stage" id="dog-stage" title="pet the dog">
+      <div class="glow"></div>
+      <canvas id="dog-hero" width="16" height="16" style="width:192px;height:192px"></canvas>
+    </div>
+    <h1 class="px">BISCUIT</h1>
+    <p class="tag">The pixel pup that runs your Mac.</p>
+    <p class="sub">
+      Hold <span class="kbd">⌃ control</span> + <span class="kbd">fn</span>, say the thing, let go.
+      Biscuit opens the app, plays the song, sets the volume, writes the note —
+      confirms out loud, then goes back to his corner.
+    </p>
+    <div class="cta-row">
+      <a class="btn primary px" href="#get">GET BISCUIT</a>
+      <a class="btn ghost px" href="#tricks">SEE TRICKS</a>
+    </div>
+  </header>
+
+  <section id="tricks">
+    <h2 class="px"><span class="paw">▸</span> TRICKS</h2>
+    <p class="section-sub">Good boy. Very capable boy.</p>
+    <div class="grid">
+      <div class="card">
+        <div class="emoji">🦴</div>
+        <h3>Does, not explains</h3>
+        <p>Ask for a task and Biscuit performs it with real tools — apps, AppleScript, shell — instead of reciting instructions back at you.</p>
+      </div>
+      <div class="card">
+        <div class="emoji">🎙️</div>
+        <h3>Hold-to-talk</h3>
+        <p>Hold ⌃+fn anywhere in macOS. Release to send. Stop talking and he figures out you're done. No Enter key, no clicking.</p>
+      </div>
+      <div class="card">
+        <div class="emoji">🧠</div>
+        <h3>Local brain</h3>
+        <p>Powered by Ollama running on your own Mac. Your requests never need to leave the machine to get things done.</p>
+      </div>
+      <div class="card">
+        <div class="emoji">🗣️</div>
+        <h3>A real voice</h3>
+        <p>Natural speech via Gemini or ElevenLabs TTS, with the system voice as an offline fallback. Replies are one short sentence — by design.</p>
+      </div>
+      <div class="card">
+        <div class="emoji">🐕</div>
+        <h3>Stays in his corner</h3>
+        <p><span class="dot" style="background:var(--green)"></span>listening
+           <span class="dot" style="background:var(--amber)"></span>working
+           <span class="dot" style="background:var(--blue)"></span>speaking —
+           a 16×16 companion shows state with a glow and a wag. No windows unless you ask.</p>
+      </div>
+      <div class="card">
+        <div class="emoji">🔒</div>
+        <h3>Private by default</h3>
+        <p>Speech-to-text runs on-device with Apple's recognizer. No accounts, no telemetry, no cloud required for the core loop.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <h2 class="px"><span class="paw">▸</span> HOW IT WORKS</h2>
+    <p class="section-sub">Three steps. One of them is just talking.</p>
+    <div class="steps">
+      <div class="step">
+        <span class="n">01</span>
+        <h3>Hold &amp; speak</h3>
+        <p>"Play SZA on YouTube Music." "Set volume to 40." "Make a note: call mom." Biscuit transcribes on-device while you talk.</p>
+      </div>
+      <div class="step">
+        <span class="n">02</span>
+        <h3>Biscuit fetches</h3>
+        <p>The local model picks tools and runs them — launching apps, opening links, scripting your Mac — chaining steps until the job's done.</p>
+      </div>
+      <div class="step">
+        <span class="n">03</span>
+        <h3>One bark, then naps</h3>
+        <p>"Done — playing SZA." The bubble fades, the glow goes out, and Biscuit curls back up in the corner until next time.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="get">
+    <h2 class="px"><span class="paw">▸</span> GET BISCUIT</h2>
+    <p class="section-sub">Bring your own brain (free, local), then build the pup in Xcode.</p>
+    <pre class="install"><span class="c"># 1. the brain (free, runs on your Mac)</span>
+<span class="p">$</span> brew install ollama
+<span class="p">$</span> ollama pull qwen2.5:7b
+<span class="p">$</span> ollama serve
+
+<span class="c"># 2. the dog — clone, open in Xcode, hit run</span>
+<span class="p">$</span> git clone https://github.com/GithubUsername567/biscuit.git
+<span class="p">$</span> cd biscuit
+<span class="p">$</span> open NotchAssistant.xcodeproj</pre>
+    <p style="margin-top:14px"><a style="color:var(--biscuit)" href="https://github.com/GithubUsername567/biscuit">github.com/GithubUsername567/biscuit →</a></p>
+    <p style="opacity:.6; margin-top:18px; font-size:14.5px">
+      macOS 14+. First run asks for Microphone, Speech Recognition, and Input Monitoring (for the hold-to-talk key). Grant them — he's a good boy.
+    </p>
+    <div class="palette">
+      <div class="swatch" data-name="Biscuit #C98A4B" style="background:#C98A4B"></div>
+      <div class="swatch" data-name="Cocoa #4A2E19" style="background:#4A2E19"></div>
+      <div class="swatch" data-name="Cream #F2E4D0" style="background:#F2E4D0"></div>
+      <div class="swatch" data-name="Charcoal #15110C" style="background:#15110C"></div>
+      <div class="swatch" data-name="Listen Green #4ADE80" style="background:#4ADE80"></div>
+      <div class="swatch" data-name="Think Amber #F59E0B" style="background:#F59E0B"></div>
+      <div class="swatch" data-name="Speak Blue #60A5FA" style="background:#60A5FA"></div>
+      <div class="swatch" data-name="Oops Red #F87171" style="background:#F87171"></div>
+    </div>
+  </section>
+
+  <footer>
+    <span class="px">BISCUIT</span>
+    A very good assistant. Built with SwiftUI, Ollama &amp; one (1) pixel dog.
+  </footer>
+</div>
+
+<script>
+// Same sprite maps as the app — single source of truth, drawn on canvas.
+const PALETTE = { B: "#C98A4B", D: "#4A2E19", W: "#F2E4D0", K: "#1C1C1E", P: "#E66A8A" };
+
+const TAIL_DOWN = [
+"................",
+"..D.........D...",
+"..DD.......DD...",
+"..DBD.....DBD...",
+"...DBBBBBBBD....",
+"...DBKBBBKBD....",
+"...DBBBBBBBD....",
+"...DBWWKWWBD....",
+"...DBBWWWBBD....",
+"....DBBBBBD.....",
+"...DBBBBBBBD....",
+"..DBBBBBBBBBD...",
+"..DBWWBBBWWBD.D.",
+"..DBWWBBBWWBDD..",
+"..DDDDDDDDDDD...",
+"................",
+];
+const TAIL_UP = [
+"................",
+"..D.........D...",
+"..DD.......DD...",
+"..DBD.....DBD...",
+"...DBBBBBBBD....",
+"...DBKBBBKBD....",
+"...DBBBBBBBD....",
+"...DBWWKWWBD....",
+"...DBBWWWBBD....",
+"....DBBBBBD.....",
+"...DBBBBBBBD..D.",
+"..DBBBBBBBBBD.D.",
+"..DBWWBBBWWBDD..",
+"..DBWWBBBWWBD...",
+"..DDDDDDDDDDD...",
+"................",
+];
+const EARS_UP_A = [
+"..D.........D...",
+"..DD.......DD...",
+"..DBD.....DBD...",
+"..DBBD...DBBD...",
+"...DBBBBBBBD....",
+"...DBKBBBKBD....",
+"...DBBBBBBBD....",
+"...DBWWKWWBD....",
+"...DBBWWWBBD....",
+"....DBBBBBD.....",
+"...DBBBBBBBD....",
+"..DBBBBBBBBBD...",
+"..DBWWBBBWWBD.D.",
+"..DBWWBBBWWBDD..",
+"..DDDDDDDDDDD...",
+"................",
+];
+const EARS_UP_B = EARS_UP_A.map((row, i) => TAIL_UP[i].includes("D.") && i >= 10 && i <= 13 ? TAIL_UP[i] : row);
+
+function draw(canvas, map) {
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, 16, 16);
+  map.forEach((row, y) => {
+    [...row].forEach((ch, x) => {
+      const color = PALETTE[ch];
+      if (color) { ctx.fillStyle = color; ctx.fillRect(x, y, 1, 1); }
+    });
+  });
+}
+
+const hero = document.getElementById("dog-hero");
+const navDog = document.getElementById("dog-nav");
+const stage = document.getElementById("dog-stage");
+let frame = 0;
+let petting = false;
+stage.addEventListener("mouseenter", () => petting = true);
+stage.addEventListener("mouseleave", () => petting = false);
+
+function tick() {
+  frame = 1 - frame;
+  const idle = frame ? TAIL_UP : TAIL_DOWN;
+  const happy = frame ? EARS_UP_B : EARS_UP_A;
+  draw(hero, petting ? happy : idle);
+  draw(navDog, idle);
+}
+draw(hero, TAIL_DOWN);
+draw(navDog, TAIL_DOWN);
+setInterval(tick, 450);
+</script>
+</body>
+</html>
