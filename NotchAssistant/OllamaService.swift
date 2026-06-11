@@ -2,9 +2,10 @@ import Foundation
 
 /// Talks to a local Ollama instance over HTTP using /api/chat with streaming
 /// and function calling.
-final class OllamaService {
+final class OllamaService: ChatProvider {
 
-    private let systemPrompt = """
+    /// Shared by both backends so Local and Capable modes behave identically.
+    static let agentSystemPrompt = """
     You are Biscuit, an agent that CONTROLS the user's Mac. You can both script the Mac and SEE and OPERATE app interfaces.
 
     Tools:
@@ -13,6 +14,8 @@ final class OllamaService {
     - click_element {number} — click an item from the latest see_screen.
     - type_text {text, submit} — type into the focused field; submit=true presses Return.
     - press_key {key, modifiers} — a key or shortcut.
+    - look_closely {question} — take a real screenshot and visually answer/locate something when see_screen has no useful elements (canvas/game/image/video apps) or to confirm visual state.
+    - click_at {x, y} — click at a fractional screen position (0..1) from a look_closely answer.
 
     CORE RULES:
     1. When asked to DO anything, you MUST use tools. NEVER reply with instructions. NEVER say you can't.
@@ -122,7 +125,7 @@ final class OllamaService {
         }
         let url = base.appendingPathComponent("api/chat")
 
-        let wireMessages = [OllamaMessage(role: ChatRole.system.rawValue, content: systemPrompt)] + messages
+        let wireMessages = [OllamaMessage(role: ChatRole.system.rawValue, content: Self.agentSystemPrompt)] + messages
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -137,5 +140,14 @@ final class OllamaService {
             )
         )
         return request
+    }
+
+    // MARK: - ChatProvider
+
+    func stream(messages: [OllamaMessage]) -> AsyncThrowingStream<OllamaStreamEvent, Error> {
+        let defaults = UserDefaults.standard
+        let model = defaults.string(forKey: SettingsKeys.modelName) ?? SettingsKeys.defaultModel
+        let baseURL = defaults.string(forKey: SettingsKeys.ollamaBaseURL) ?? SettingsKeys.defaultBaseURL
+        return streamChat(messages: messages, model: model, baseURLString: baseURL)
     }
 }

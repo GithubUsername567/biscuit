@@ -102,16 +102,18 @@ struct OllamaChatRequest: Encodable {
 struct OllamaMessage: Codable {
     let role: String
     let content: String
+    var name: String?
     var toolCalls: [OllamaToolCall]?
 
     enum CodingKeys: String, CodingKey {
-        case role, content
+        case role, content, name
         case toolCalls = "tool_calls"
     }
 
-    init(role: String, content: String, toolCalls: [OllamaToolCall]? = nil) {
+    init(role: String, content: String, name: String? = nil, toolCalls: [OllamaToolCall]? = nil) {
         self.role = role
         self.content = content
+        self.name = name
         self.toolCalls = toolCalls
     }
 
@@ -119,8 +121,24 @@ struct OllamaMessage: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         role = try container.decodeIfPresent(String.self, forKey: .role) ?? "assistant"
         content = try container.decodeIfPresent(String.self, forKey: .content) ?? ""
+        name = try container.decodeIfPresent(String.self, forKey: .name)
         toolCalls = try container.decodeIfPresent([OllamaToolCall].self, forKey: .toolCalls)
     }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(role, forKey: .role)
+        try container.encode(content, forKey: .content)
+        // Ollama rejects unknown null fields on some versions — omit when nil.
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(toolCalls, forKey: .toolCalls)
+    }
+}
+
+/// Abstraction over the chat backend so the agent loop is provider-agnostic.
+/// Both OllamaService (local) and GeminiService (cloud) conform.
+protocol ChatProvider {
+    func stream(messages: [OllamaMessage]) -> AsyncThrowingStream<OllamaStreamEvent, Error>
 }
 
 struct OllamaToolCall: Codable {
@@ -209,6 +227,11 @@ enum SettingsKeys {
     static let edgeVoiceName = "edgeVoiceName"
     static let showCompanion = "showCompanion"
     static let launchAtLogin = "launchAtLogin"
+    static let brainMode = "brainMode"            // "local" | "capable"
+    static let geminiPlannerModel = "geminiPlannerModel"
+    static let allowScreenshots = "allowScreenshots"
+
+    static let defaultPlannerModel = "gemini-2.0-flash"
 
     static let defaultBaseURL = "http://localhost:11434"
     static let defaultModel = "qwen2.5:7b"
@@ -257,6 +280,25 @@ enum ToolExecutor {
                         "modifiers": property(description: "Space-separated modifiers, e.g. 'cmd shift'. Optional."),
                     ],
                     required: ["key"]
+                )
+            )),
+            OllamaTool(function: .init(
+                name: "look_closely",
+                description: "Take a real screenshot of the frontmost window and visually answer a question about it. Use ONLY when see_screen returns no useful elements (canvas apps, games, images, video), or to visually confirm something see_screen can't tell (is the video playing, what color/text is shown). Ask for fractional coordinates (0..1) of a target if you then want to click_at it.",
+                parameters: schema(
+                    properties: ["question": property(description: "What to look for or verify, e.g. 'Is a song playing? Give the x,y fraction of the play button.'")],
+                    required: ["question"]
+                )
+            )),
+            OllamaTool(function: .init(
+                name: "click_at",
+                description: "Click at a fractional screen position. x and y are 0..1 (0,0 = top-left, 1,1 = bottom-right of the main screen). Use coordinates from look_closely when an element has no see_screen number.",
+                parameters: schema(
+                    properties: [
+                        "x": property(type: "number", description: "Horizontal fraction 0..1."),
+                        "y": property(type: "number", description: "Vertical fraction 0..1."),
+                    ],
+                    required: ["x", "y"]
                 )
             )),
             OllamaTool(function: .init(
@@ -340,6 +382,26 @@ enum ToolExecutor {
             try? await Task.sleep(for: .milliseconds(400))
             return "Pressed \(key)."
 
+        case "look_closely":
+            guard let question = args["question"]?.stringValue, !question.isEmpty else {
+                return "Error: missing question."
+            }
+            return await VisionService.look(question: question)
+
+        case "click_at":
+            guard let fx = doubleArg(args["x"]), let fy = doubleArg(args["y"]) else {
+                return "Error: missing x/y fractions."
+            }
+            // CGEvent click space is top-left origin over the main display.
+            let bounds = CGDisplayBounds(CGMainDisplayID())
+            let point = CGPoint(
+                x: bounds.minX + min(max(fx, 0), 1) * bounds.width,
+                y: bounds.minY + min(max(fy, 0), 1) * bounds.height
+            )
+            await InputSynthesizer.click(at: point)
+            try? await Task.sleep(for: .milliseconds(600))
+            return "Clicked at (\(Int(fx * 100))%, \(Int(fy * 100))%). Call see_screen or look_closely to verify."
+
         case "open_app":
             guard let name = args["name"]?.stringValue, !name.isEmpty else {
                 return "Error: missing app name."
@@ -416,6 +478,14 @@ enum ToolExecutor {
         switch value {
         case .number(let n): return Int(n)
         case .string(let s): return Int(s)
+        default: return nil
+        }
+    }
+
+    private static func doubleArg(_ value: JSONValue?) -> Double? {
+        switch value {
+        case .number(let n): return n
+        case .string(let s): return Double(s)
         default: return nil
         }
     }

@@ -76,9 +76,8 @@ final class AppState: ObservableObject {
         trimHistory()
         state = .processing
 
-        let model = self.model
-        let baseURL = self.baseURL
         let maxToolRounds = 12 // see→act→verify loops need more rounds
+        let provider = self.makeProvider()
 
         generationTask = Task { [weak self] in
             guard let self else { return }
@@ -92,7 +91,7 @@ final class AppState: ObservableObject {
                     var assistantIndex: Int?
                     var pendingCalls: [OllamaToolCall] = []
 
-                    for try await event in self.ollama.streamChat(messages: wire, model: model, baseURLString: baseURL) {
+                    for try await event in provider.stream(messages: wire) {
                         switch event {
                         case .token(let token):
                             assistantText += token
@@ -133,7 +132,7 @@ final class AppState: ObservableObject {
                             content: friendlyToolLabel(call)
                         ))
                         let result = await ToolExecutor.execute(call)
-                        wire.append(OllamaMessage(role: ChatRole.tool.rawValue, content: result))
+                        wire.append(OllamaMessage(role: ChatRole.tool.rawValue, content: result, name: call.function.name))
                     }
 
                     rounds += 1
@@ -160,6 +159,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Chooses the brain: Gemini in Capable mode (when a key is set),
+    /// otherwise local Ollama.
+    private func makeProvider() -> ChatProvider {
+        let defaults = UserDefaults.standard
+        let mode = defaults.string(forKey: SettingsKeys.brainMode) ?? "local"
+        let geminiKey = defaults.string(forKey: SettingsKeys.geminiAPIKey) ?? ""
+        if mode == "capable", !geminiKey.isEmpty {
+            return GeminiService(systemPrompt: OllamaService.agentSystemPrompt)
+        }
+        return ollama
+    }
+
     private func friendlyToolLabel(_ call: OllamaToolCall) -> String {
         let args = call.argumentsDictionary
         switch call.function.name {
@@ -169,6 +180,8 @@ final class AppState: ObservableObject {
         case "press_key": return "⌨️ pressing \(args["key"]?.displayString ?? "")"
         case "open_app": return "📂 opening \(args["name"]?.displayString ?? "app")"
         case "open_url": return "🌐 opening a link"
+        case "look_closely": return "🔍 looking closely"
+        case "click_at": return "🖱️ clicking"
         default: return "⚙️ \(call.function.name)"
         }
     }

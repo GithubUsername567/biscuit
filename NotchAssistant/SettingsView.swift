@@ -18,6 +18,9 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.edgeVoiceName) private var edgeVoiceName = ""
     @AppStorage(SettingsKeys.showCompanion) private var showCompanion = true
     @AppStorage(SettingsKeys.launchAtLogin) private var launchAtLogin = true
+    @AppStorage(SettingsKeys.brainMode) private var brainMode = "local"
+    @AppStorage(SettingsKeys.geminiPlannerModel) private var plannerModel = ""
+    @AppStorage(SettingsKeys.allowScreenshots) private var allowScreenshots = true
 
     @State private var micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
 
@@ -41,11 +44,42 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             Form {
-                Section("Ollama") {
+                Section("Brain") {
+                    Picker("Planner", selection: $brainMode) {
+                        Text("Private — local model").tag("local")
+                        Text("Capable — Gemini").tag("capable")
+                    }
+                    if brainMode == "capable" {
+                        TextField("Gemini model (blank = gemini-2.0-flash)", text: $plannerModel)
+                            .autocorrectionDisabled()
+                        Text("Capable mode plans multi-step tasks far better and is free, but your prompts and screenshots go to Google. Needs the Gemini key below. Private keeps everything on your Mac.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Everything stays on your Mac via Ollama. Best for simple tasks; switch to Capable for reliable multi-step automation.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Section("Ollama (local brain)") {
                     TextField("Base URL", text: $baseURL)
                         .autocorrectionDisabled()
                     TextField("Model", text: $modelName)
                         .autocorrectionDisabled()
+                }
+
+                Section("Screen Vision") {
+                    Toggle("Allow screenshots (look_closely)", isOn: $allowScreenshots)
+                    LabeledContent("Screen Recording", value: screenRecordingStatus)
+                    Button("Open Screen Recording Settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    Text("Lets Biscuit screenshot the front window and ask Gemini vision about it — for apps without accessibility info, or visual checks. Sends an image to Google; turn off to stay fully local. Uses the Gemini key.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Voice Engine") {
@@ -157,6 +191,10 @@ struct SettingsView: View {
         PerceptionService.hasPermission ? "Granted" : "Not granted"
     }
 
+    private var screenRecordingStatus: String {
+        VisionService.screenRecordingAllowed ? "Granted" : "Not granted"
+    }
+
     private var micStatusText: String {
         switch micStatus {
         case .authorized: "Granted"
@@ -178,5 +216,8 @@ struct SettingsView: View {
         elevenLabsVoiceID = ""
         showCompanion = true
         launchAtLogin = true
+        brainMode = "local"
+        plannerModel = ""
+        allowScreenshots = true
     }
 }
