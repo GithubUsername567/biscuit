@@ -25,6 +25,7 @@ final class CompanionWindowController {
 
     private var customOrigin: NSPoint?
     private var dragStartOrigin: NSPoint?
+    private var dragMouseStart: NSPoint?
     private var snoozeTask: Task<Void, Never>?
 
     func show() {
@@ -42,17 +43,35 @@ final class CompanionWindowController {
 
     // MARK: - Move out of the way
 
+    /// The SwiftUI gesture's own translation is measured in window space,
+    /// which shifts as the window moves — feedback loop. Anchor to the
+    /// screen-space mouse location instead; the gesture is only a trigger.
     func dragChanged(_ translation: CGSize) {
         guard let panel else { return }
-        if dragStartOrigin == nil { dragStartOrigin = panel.frame.origin }
-        guard let start = dragStartOrigin else { return }
-        // SwiftUI y grows down, AppKit y grows up.
-        panel.setFrameOrigin(NSPoint(x: start.x + translation.width, y: start.y - translation.height))
+        let mouse = NSEvent.mouseLocation
+        if dragStartOrigin == nil {
+            dragStartOrigin = panel.frame.origin
+            dragMouseStart = mouse
+        }
+        guard let startOrigin = dragStartOrigin, let mouseStart = dragMouseStart else { return }
+        panel.setFrameOrigin(NSPoint(
+            x: startOrigin.x + (mouse.x - mouseStart.x),
+            y: startOrigin.y + (mouse.y - mouseStart.y)
+        ))
     }
 
     func dragEnded() {
-        customOrigin = panel?.frame.origin
         dragStartOrigin = nil
+        dragMouseStart = nil
+        guard let panel, let screen = NSScreen.main else { return }
+        // Never let the dog get lost off-screen.
+        let visible = screen.visibleFrame
+        let clamped = NSPoint(
+            x: min(max(panel.frame.origin.x, visible.minX), visible.maxX - panel.frame.width),
+            y: min(max(panel.frame.origin.y, visible.minY), visible.maxY - panel.frame.height)
+        )
+        panel.setFrameOrigin(clamped)
+        customOrigin = clamped
     }
 
     func moveToCorner(left: Bool) {
@@ -88,7 +107,10 @@ final class CompanionWindowController {
         panel.isOpaque = false
         panel.hasShadow = false
         panel.hidesOnDeactivate = false
-        panel.isMovableByWindowBackground = true
+        // Dragging is handled manually in dragChanged(_:) — leaving the
+        // system background-drag on too made both fight over the window
+        // (jitter/teleport).
+        panel.isMovableByWindowBackground = false
 
         let view = CompanionView(actions: CompanionActions(
             tap: { [weak self] in self?.onTap?() },
