@@ -253,7 +253,14 @@ final class AppState: ObservableObject {
             try? await Task.sleep(for: .seconds(delay))
             guard let self, !Task.isCancelled, self.state == .listening else { return }
             if self.inputText.trimmingCharacters(in: .whitespaces).isEmpty {
-                self.cancel()
+                // Nothing heard. If the mic isn't actually granted, say so
+                // instead of silently vanishing (which looks like a hang).
+                if AudioInputService.microphoneStatus != .authorized {
+                    self.interruptActivity()
+                    self.notify("I can't hear you — enable the microphone in System Settings → Privacy → Microphone.")
+                } else {
+                    self.cancel()
+                }
             } else {
                 self.finishListening()
             }
