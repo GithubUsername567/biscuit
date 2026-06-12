@@ -70,6 +70,11 @@
     text-shadow: 4px 4px 0 rgba(0,0,0,.45);
   }
   .hero p.tag { font-size: clamp(17px, 2.6vw, 22px); font-weight: 500; }
+  .demo-gif {
+    display: block; width: 100%; max-width: 880px; margin: 0 auto;
+    border: 3px solid var(--cocoa, #4A2E19); border-radius: 12px;
+    image-rendering: auto;
+  }
   .hero p.sub {
     max-width: 600px; margin: 14px auto 36px; opacity: .72; font-size: 16.5px;
   }
@@ -180,6 +185,14 @@
       <a class="btn ghost px" href="#tricks">SEE TRICKS</a>
     </div>
   </header>
+
+  <!-- TODO: remove hidden once demo.gif exists next to this file -->
+  <section id="demo" hidden>
+    <h2 class="px"><span class="paw">▸</span> WATCH</h2>
+    <p class="section-sub">One take, no cuts. Hold the key, say the thing.</p>
+    <img class="demo-gif" src="demo.gif"
+         alt="Screen recording: a voice command to Biscuit opens YouTube Music and plays a track while the pixel dog reacts" />
+  </section>
 
   <section id="tricks">
     <h2 class="px"><span class="paw">▸</span> TRICKS</h2>

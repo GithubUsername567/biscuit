@@ -13,6 +13,6 @@
 #   security import biscuit.p12 -k ~/Library/Keychains/login.keychain-db \
 #     -P biscuit -T /usr/bin/codesign -A
 
-APP="${1:-/Applications/NotchAssistant.app}"
-codesign --force --deep --sign "Biscuit Local Signing" --identifier com.local.NotchAssistant "$APP"
+APP="${1:-/Applications/Biscuit.app}"
+codesign --force --deep --sign "Biscuit Local Signing" --identifier com.local.Biscuit "$APP"
 codesign -dvvv "$APP" 2>&1 | grep -E "Authority|Identifier=" | head -2

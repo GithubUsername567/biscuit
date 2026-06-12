@@ -5,25 +5,37 @@
 
 **The pixel pup that runs your Mac.** Hold a key, say the thing, Biscuit does it — opens apps, plays music, sets volume, writes notes — confirms out loud, then goes back to his corner.
 
+<!-- TODO: uncomment once demo/record.sh take lands in docs/demo.gif
+![Biscuit demo — voice command opening YouTube Music and playing a track](docs/demo.gif)
+-->
+
 Local-first voice agent for macOS 14+: SwiftUI + AppKit, Ollama for the brain, on-device speech recognition, free neural TTS. No accounts, no telemetry.
 
 Brand kit + website: [`branding/`](branding/) · Site: `branding/website/index.html`
 
 ## Install
 
-```sh
-# 1. The brain (free, local)
-brew install ollama
-ollama pull qwen2.5:7b
-ollama serve
+**Option A — download.** Grab the `.dmg` from [Releases](https://github.com/GithubUsername567/biscuit/releases), drag Biscuit to Applications. The app isn't notarized yet, so the first launch needs a right-click → Open (or `xattr -dr com.apple.quarantine /Applications/Biscuit.app`).
 
-# 2. The dog
+**Option B — build from source.**
+
+```sh
 git clone https://github.com/GithubUsername567/biscuit.git
 cd biscuit
 open NotchAssistant.xcodeproj   # then ⌘R in Xcode
 ```
 
 Builds with ad-hoc signing out of the box; set your team in *Signing & Capabilities* if you prefer.
+
+**The brain (either option, free, local):**
+
+```sh
+brew install ollama
+ollama pull qwen2.5:7b
+ollama serve
+```
+
+Or skip Ollama entirely: paste a free [Google AI Studio key](https://aistudio.google.com/apikey) in Settings and pick the Capable brain.
 
 ## Usage
 

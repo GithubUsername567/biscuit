@@ -7,3 +7,6 @@ biscuit.key
 biscuit.crt
 biscuit.p12
 biscuit-cert.conf
+demo/*.mov
+demo/palette.png
+*.dmg
