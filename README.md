@@ -5,9 +5,9 @@
 
 **The pixel pup that runs your Mac.** Hold a key, say the thing, Biscuit does it — opens apps, plays music, sets volume, writes notes — confirms out loud, then goes back to his corner.
 
-<!-- TODO: uncomment once demo/record.sh take lands in docs/demo.gif
-![Biscuit demo — voice command opening YouTube Music and playing a track](docs/demo.gif)
--->
+!["Biscuit, play lofi beats on YouTube Music" — spoken aloud; Biscuit opens YouTube Music, finds the song, and presses play](docs/demo.gif)
+
+<p align="center"><i>One voice command: "Biscuit, play lofi beats on YouTube Music" — it searches, clicks, and music plays.</i></p>
 
 Local-first voice agent for macOS 14+: SwiftUI + AppKit, Ollama for the brain, on-device speech recognition, free neural TTS. No accounts, no telemetry.
 
