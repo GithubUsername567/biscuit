@@ -253,7 +253,11 @@ final class AppState: ObservableObject {
                     armSilenceTimer(10)
                 }
             } catch {
-                let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                // Avoid surfacing raw "(com.apple…)" NSError text; show our
+                // own messages, fall back to a clean generic line.
+                let message = (error as? AudioInputService.AudioInputError)?.errorDescription
+                    ?? "Couldn't start listening. Try again."
+                NSLog("startListening failed: \(error.localizedDescription)")
                 state = .error(message)
             }
         }
