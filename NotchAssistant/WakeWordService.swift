@@ -28,6 +28,11 @@ final class WakeWordService {
     /// Stale-callback guard: recycling cancels the old task, which then emits
     /// a cancellation error that must not trigger another restart.
     private var generation = 0
+    /// Sessions dying instantly (Bluetooth profile flaps, recognizer asset
+    /// trouble) must not turn into a tight restart loop that hogs the mic —
+    /// back off exponentially and eventually idle down to a slow heartbeat.
+    private var sessionStartedAt = Date.distantPast
+    private var consecutiveFailures = 0
 
     private let wakeWord = "biscuit"
     /// On-device sessions accumulate transcript forever, so matching gets
@@ -81,14 +86,14 @@ final class WakeWordService {
                 guard let self, self.shouldRun, self.generation == gen else { return }
                 if let result,
                    result.bestTranscription.formattedString.lowercased().contains(self.wakeWord) {
+                    BLog.log("WakeWord: detected")
+                    self.consecutiveFailures = 0
                     self.teardownSession()
                     self.onWake?()
                     return
                 }
-                if error != nil {
-                    // On-device tasks die routinely after long silences —
-                    // that's normal churn, not a failure. Re-arm quietly.
-                    self.scheduleRestart(after: 0.5, generation: gen)
+                if let error {
+                    self.handleSessionDeath(error, generation: gen)
                 }
             }
         }
@@ -101,7 +106,7 @@ final class WakeWordService {
         do {
             try audioEngine.start()
         } catch {
-            scheduleRestart(after: 2, generation: gen)
+            handleSessionDeath(error, generation: gen)
             return
         }
 
@@ -110,6 +115,22 @@ final class WakeWordService {
         }
         RunLoop.main.add(timer, forMode: .common)
         recycleTimer = timer
+        sessionStartedAt = Date()
+    }
+
+    /// Long-silence deaths are normal churn (restart soon); instant deaths
+    /// mean something is wrong (back off: 0.5s, 1s, 2s … capped at 60s).
+    private func handleSessionDeath(_ error: Error, generation gen: Int) {
+        if Date().timeIntervalSince(sessionStartedAt) < 2 {
+            consecutiveFailures += 1
+        } else {
+            consecutiveFailures = 0
+        }
+        let delay = min(60, 0.5 * pow(2, Double(consecutiveFailures)))
+        if consecutiveFailures > 0 {
+            BLog.log("WakeWord: session died instantly (\(error.localizedDescription)) — failure #\(consecutiveFailures), retrying in \(delay)s")
+        }
+        scheduleRestart(after: delay, generation: gen)
     }
 
     private func scheduleRestart(after seconds: TimeInterval, generation gen: Int) {
