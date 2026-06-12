@@ -193,6 +193,7 @@ final class AudioInputService: NSObject {
     /// Stops capturing and lets the recognizer deliver its final transcript.
     func stopAndFinalize() {
         guard isListening else { return }
+        NSLog("AudioInput: finalizing (heardSpeech=\(heardSpeech), transcript=\(latestTranscript.count) chars)")
         endpointTimer?.invalidate()
         endpointTimer = nil
         stopEngine()
@@ -247,6 +248,10 @@ final class AudioInputService: NSObject {
 
     private func finish(_ result: Result<String, Error>) {
         guard let completion else { return }
+        switch result {
+        case .success(let text): NSLog("AudioInput: delivering transcript (\(text.count) chars)")
+        case .failure(let error): NSLog("AudioInput: delivering failure: \(error.localizedDescription)")
+        }
         self.completion = nil
         endpointTimer?.invalidate()
         endpointTimer = nil

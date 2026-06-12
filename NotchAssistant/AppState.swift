@@ -16,8 +16,6 @@ final class AppState: ObservableObject {
 
     /// Set by the app delegate so views can ask the floating panel to close.
     var onRequestHide: (@MainActor () -> Void)?
-    /// Set by the app delegate so the wake word can pop the panel.
-    var onRequestShow: (@MainActor () -> Void)?
 
     private let ollama = OllamaService()
     private let audio = AudioInputService()
@@ -236,8 +234,11 @@ final class AppState: ObservableObject {
 
     private func handleWake() {
         guard state == .idle else { return }
+        NSLog("WakeWord: detected — starting capture")
+        // Background flow like the hotkey: the chime + dog bubble are the
+        // only feedback, no panel — it steals focus from whatever the user
+        // is doing.
         NSSound(named: "Pop")?.play()
-        onRequestShow?()
         startListening()
     }
 
@@ -328,6 +329,7 @@ final class AppState: ObservableObject {
     private func handleTranscription(_ result: Result<String, Error>) {
         switch result {
         case .success(let text) where !text.trimmingCharacters(in: .whitespaces).isEmpty:
+            NSLog("AppState: auto-sending transcription (\(text.count) chars)")
             inputText = ""
             send(text)
         case .success:

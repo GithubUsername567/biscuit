@@ -90,9 +90,9 @@ struct SettingsView: View {
                         Text("ElevenLabs").tag("elevenlabs")
                         Text("System voice").tag("system")
                     }
-                    TextField("Edge voice (blank = en-US-AriaNeural)", text: $edgeVoiceName)
+                    TextField("Edge voice (blank = en-US-AndrewNeural)", text: $edgeVoiceName)
                         .autocorrectionDisabled()
-                    Text("Edge uses Microsoft neural voices for free with no account. Try en-US-GuyNeural, en-US-JennyNeural, en-US-ChristopherNeural, en-GB-SoniaNeural.")
+                    Text("Edge uses Microsoft neural voices for free with no account. Try en-US-GuyNeural, en-US-ChristopherNeural, en-US-AriaNeural, en-US-JennyNeural, en-GB-SoniaNeural.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

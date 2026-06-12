@@ -8,7 +8,7 @@ final class SpeechService: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerD
 
     static let defaultElevenLabsVoiceID = "21m00Tcm4TlvDq8ikWAM" // Rachel
     static let defaultGeminiVoice = "Kore"
-    static let defaultEdgeVoice = "en-US-AriaNeural"
+    static let defaultEdgeVoice = "en-US-AndrewNeural"
 
     private let synthesizer = AVSpeechSynthesizer()
     private var player: AVAudioPlayer?

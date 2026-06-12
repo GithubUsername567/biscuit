@@ -25,7 +25,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         windowController = FloatingWindowController(appState: appState)
         appState.onRequestHide = { [weak self] in self?.windowController.hide() }
-        appState.onRequestShow = { [weak self] in self?.windowController.show() }
 
         companionController = CompanionWindowController(appState: appState)
         // Dog click: background listen toggle — no panel.
