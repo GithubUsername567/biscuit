@@ -50,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // in the background — the dog's bubble is the only feedback. The full
         // panel stays available via the menu bar icon.
         hotkeyManager.onHoldBegan = { [weak self] in
-            Task { @MainActor in self?.appState.startListening() }
+            Task { @MainActor in self?.appState.startListening(holdMode: true) }
         }
         hotkeyManager.onHoldEnded = { [weak self] in
             Task { @MainActor in self?.appState.finishListening() }

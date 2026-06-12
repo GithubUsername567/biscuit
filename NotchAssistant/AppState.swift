@@ -18,7 +18,6 @@ final class AppState: ObservableObject {
     private let audio = AudioInputService()
     private let speech = SpeechService()
     private var generationTask: Task<Void, Never>?
-    private var silenceTask: Task<Void, Never>?
     private var autoHideTask: Task<Void, Never>?
     /// Set when finishListening is called before the async startListening has
     /// actually begun capturing (quick hotkey taps) — applied once it starts.
@@ -191,6 +190,7 @@ final class AppState: ObservableObject {
         case "open_url": return "🌐 opening a link"
         case "look_closely": return "🔍 looking closely"
         case "click_at": return "🖱️ clicking"
+        case "web_search": return "🌐 searching the web"
         default: return "⚙️ \(call.function.name)"
         }
     }
@@ -224,7 +224,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    func startListening(isRetry: Bool = false) {
+    func startListening(isRetry: Bool = false, holdMode: Bool = false) {
         interruptActivity()
         cancelAutoHide()
         pendingFinalize = false
@@ -238,12 +238,10 @@ final class AppState: ObservableObject {
             inputText = ""
             state = .listening
             let beginCapture = { [weak self] in
-                try self?.audio.startListening(onPartial: { text in
-                    Task { @MainActor in
-                        self?.inputText = text
-                        // Auto-send once the user stops talking.
-                        self?.armSilenceTimer(1.6)
-                    }
+                // Auto-endpoint (VAD) for click/tap; hold-to-talk ends only on
+                // key release, so it never cuts off while held.
+                try self?.audio.startListening(autoEndpoint: !holdMode, onPartial: { text in
+                    Task { @MainActor in self?.inputText = text }
                 }, onCompletion: { result in
                     Task { @MainActor in self?.handleTranscription(result) }
                 })
@@ -272,9 +270,6 @@ final class AppState: ObservableObject {
                 if pendingFinalize {
                     pendingFinalize = false
                     finishListening()
-                } else {
-                    // Give up if we never hear anything.
-                    armSilenceTimer(10)
                 }
             } else {
                 // Avoid surfacing raw "(com.apple…)" NSError text; show our
@@ -286,27 +281,6 @@ final class AppState: ObservableObject {
         }
     }
 
-    /// Fires after `delay` seconds of silence: sends the transcript if we
-    /// heard something, otherwise stops listening entirely.
-    private func armSilenceTimer(_ delay: Double) {
-        silenceTask?.cancel()
-        silenceTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(delay))
-            guard let self, !Task.isCancelled, self.state == .listening else { return }
-            if self.inputText.trimmingCharacters(in: .whitespaces).isEmpty {
-                // Nothing heard. If the mic isn't actually granted, say so
-                // instead of silently vanishing (which looks like a hang).
-                if AudioInputService.microphoneStatus != .authorized {
-                    self.interruptActivity()
-                    self.notify("I can't hear you — enable the microphone in System Settings → Privacy → Microphone.")
-                } else {
-                    self.cancel()
-                }
-            } else {
-                self.finishListening()
-            }
-        }
-    }
 
     func finishListening() {
         // Released before capture actually began — remember to finalize once
@@ -339,6 +313,11 @@ final class AppState: ObservableObject {
                     try? await Task.sleep(for: .milliseconds(250))
                     self?.startListening(isRetry: true)
                 }
+                return
+            }
+            // If the mic isn't actually granted, say so rather than vanishing.
+            if AudioInputService.microphoneStatus != .authorized {
+                notify("I can't hear you — enable the microphone in System Settings → Privacy → Microphone.")
                 return
             }
             // Otherwise: almost always "no speech detected" from a too-quick
@@ -418,8 +397,6 @@ final class AppState: ObservableObject {
     private func interruptActivity() {
         generationTask?.cancel()
         generationTask = nil
-        silenceTask?.cancel()
-        silenceTask = nil
         audio.cancelListening()
         speech.stop()
     }

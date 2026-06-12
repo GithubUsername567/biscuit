@@ -16,6 +16,7 @@ final class OllamaService: ChatProvider {
     - press_key {key, modifiers} — a key or shortcut.
     - look_closely {question} — take a real screenshot and visually answer/locate something when see_screen has no useful elements (canvas/game/image/video apps) or to confirm visual state.
     - click_at {x, y} — click at a fractional screen position (0..1) from a look_closely answer.
+    - web_search {query} — search the web and read the top results, then answer from them. Use for any question needing current or factual info you're unsure about (news, prices, people, scores, definitions, "look up", "search").
 
     CORE RULES:
     1. When asked to DO anything, you MUST use tools. NEVER reply with instructions. NEVER say you can't.

@@ -293,6 +293,14 @@ enum ToolExecutor {
                 )
             )),
             OllamaTool(function: .init(
+                name: "web_search",
+                description: "Search the web and get the top results as text. Use this whenever the user asks a question whose answer needs current, factual, or external information you don't already know (news, prices, scores, people, definitions, 'look up…', 'search for…', 'what is…'). Then answer from the returned results.",
+                parameters: schema(
+                    properties: ["query": property(description: "The search query.")],
+                    required: ["query"]
+                )
+            )),
+            OllamaTool(function: .init(
                 name: "look_closely",
                 description: "Take a real screenshot of the frontmost window and visually answer a question about it. Use ONLY when see_screen returns no useful elements (canvas apps, games, images, video), or to visually confirm something see_screen can't tell (is the video playing, what color/text is shown). Ask for fractional coordinates (0..1) of a target if you then want to click_at it.",
                 parameters: schema(
@@ -391,6 +399,12 @@ enum ToolExecutor {
             await InputSynthesizer.pressKey(keyCode: code, modifiers: mods)
             try? await Task.sleep(for: .milliseconds(400))
             return "Pressed \(key)."
+
+        case "web_search":
+            guard let query = args["query"]?.stringValue, !query.isEmpty else {
+                return "Error: missing search query."
+            }
+            return await WebSearchService.search(query)
 
         case "look_closely":
             guard let question = args["question"]?.stringValue, !question.isEmpty else {

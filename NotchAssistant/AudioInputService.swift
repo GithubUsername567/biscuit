@@ -36,6 +36,19 @@ final class AudioInputService: NSObject {
     private var tapInstalled = false
     private var finalizeFallback: DispatchWorkItem?
 
+    // Voice-activity endpointing
+    private var endpointTimer: Timer?
+    private var sessionStart = Date()
+    private var lastVoiceTime = Date()
+    private var heardSpeech = false
+    private var autoEndpoint = true
+
+    /// Tuning for end-of-speech detection.
+    private let energyThreshold: Float = 0.012   // RMS above this = speech
+    private let silenceToEnd: TimeInterval = 1.4 // quiet this long after speech → done
+    private let noSpeechTimeout: TimeInterval = 7 // never heard anything → give up
+    private let maxDuration: TimeInterval = 25    // hard cap
+
     private(set) var isListening = false
 
     static var microphoneStatus: AVAuthorizationStatus {
@@ -53,9 +66,11 @@ final class AudioInputService: NSObject {
     /// Starts capturing and transcribing. Partial transcripts stream through
     /// `onPartial`; the final transcript (or error) arrives via `onCompletion`
     /// exactly once after `stopAndFinalize()` or a recognizer-side stop.
-    func startListening(onPartial: @escaping (String) -> Void,
+    func startListening(autoEndpoint: Bool = true,
+                        onPartial: @escaping (String) -> Void,
                         onCompletion: @escaping (Result<String, Error>) -> Void) throws {
         cancelListening()
+        self.autoEndpoint = autoEndpoint
 
         // Fresh recognizer per session — reusing one is the known cause of
         // instant kAFAssistantError 1101 failures on the next session.
@@ -97,6 +112,12 @@ final class AudioInputService: NSObject {
             guard let self else { return }
             if let result {
                 self.latestTranscript = result.bestTranscription.formattedString
+                // Transcript activity counts as voice: keeps us alive while
+                // speaking even if the energy estimate is conservative.
+                if !self.latestTranscript.isEmpty {
+                    self.heardSpeech = true
+                    self.lastVoiceTime = Date()
+                }
                 if result.isFinal {
                     self.finish(.success(self.latestTranscript))
                     return
@@ -115,18 +136,65 @@ final class AudioInputService: NSObject {
 
         // nil format = "whatever the node's format is at tap time", which
         // survives sample-rate changes between our query above and the tap.
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { buffer, _ in
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
             request.append(buffer)
+            self?.updateVoiceActivity(buffer)
         }
         tapInstalled = true
         audioEngine.prepare()
         try audioEngine.start()
         isListening = true
+
+        sessionStart = Date()
+        lastVoiceTime = Date()
+        heardSpeech = false
+        if autoEndpoint {
+            let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+                self?.checkEndpoint()
+            }
+            RunLoop.main.add(timer, forMode: .common)
+            endpointTimer = timer
+        }
+    }
+
+    /// RMS of the buffer; loud enough = the user is speaking.
+    private func updateVoiceActivity(_ buffer: AVAudioPCMBuffer) {
+        guard let channel = buffer.floatChannelData?[0] else { return }
+        let count = Int(buffer.frameLength)
+        guard count > 0 else { return }
+        var sum: Float = 0
+        for i in 0..<count {
+            let sample = channel[i]
+            sum += sample * sample
+        }
+        let rms = (sum / Float(count)).squareRoot()
+        if rms > energyThreshold {
+            heardSpeech = true
+            lastVoiceTime = Date()
+        }
+    }
+
+    /// Runs ~10×/sec: ends the session when the user has clearly stopped
+    /// talking, or times out if nothing was ever heard.
+    private func checkEndpoint() {
+        guard isListening, autoEndpoint else { return }
+        let now = Date()
+        if now.timeIntervalSince(sessionStart) > maxDuration {
+            stopAndFinalize()
+        } else if heardSpeech {
+            if now.timeIntervalSince(lastVoiceTime) > silenceToEnd {
+                stopAndFinalize()
+            }
+        } else if now.timeIntervalSince(sessionStart) > noSpeechTimeout {
+            finish(.failure(AudioInputError.noSpeech))
+        }
     }
 
     /// Stops capturing and lets the recognizer deliver its final transcript.
     func stopAndFinalize() {
         guard isListening else { return }
+        endpointTimer?.invalidate()
+        endpointTimer = nil
         stopEngine()
         recognitionRequest?.endAudio()
         // On-device recognition often never fires `isFinal` after endAudio —
@@ -150,6 +218,8 @@ final class AudioInputService: NSObject {
     /// Tears everything down without delivering a transcript.
     func cancelListening() {
         completion = nil
+        endpointTimer?.invalidate()
+        endpointTimer = nil
         finalizeFallback?.cancel()
         finalizeFallback = nil
         stopEngine()
@@ -178,6 +248,8 @@ final class AudioInputService: NSObject {
     private func finish(_ result: Result<String, Error>) {
         guard let completion else { return }
         self.completion = nil
+        endpointTimer?.invalidate()
+        endpointTimer = nil
         finalizeFallback?.cancel()
         finalizeFallback = nil
         stopEngine()
