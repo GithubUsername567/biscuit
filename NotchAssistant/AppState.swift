@@ -28,6 +28,8 @@ final class AppState: ObservableObject {
     private var pendingFinalize = false
     private var listenStartedAt = Date.distantPast
     private var listenRetries = 0
+    /// Remembered so dead-input retries keep the same endpointing mode.
+    private var lastHoldMode = false
 
     /// Keep the last 10 user/assistant exchanges in memory.
     private let maxMessages = 20
@@ -259,15 +261,23 @@ final class AppState: ObservableObject {
     }
 
     func startListening(isRetry: Bool = false, holdMode: Bool = false) {
+        // A live wake engine means the input device (often Bluetooth) is
+        // being handed off right now — give it a beat to settle, or the
+        // capture engine starts cleanly but receives a dead, silent stream.
+        let wakeWasActive = wakeWord.isRunning
         interruptActivity()
         cancelAutoHide()
         pendingFinalize = false
         if !isRetry { listenRetries = 0 }
+        lastHoldMode = holdMode
         listenStartedAt = Date()
         Task {
             guard await audio.requestPermissions() else {
                 state = .error(AudioInputService.AudioInputError.permissionDenied.errorDescription ?? "Permission denied.")
                 return
+            }
+            if wakeWasActive {
+                try? await Task.sleep(for: .milliseconds(350))
             }
             inputText = ""
             state = .listening
@@ -337,6 +347,18 @@ final class AppState: ObservableObject {
             state = .idle
             hidePanel()
         case .failure(let error):
+            // Dead input stream (Bluetooth handoff): rebuild the whole
+            // capture engine — the session "worked", it just heard a corpse.
+            if case AudioInputService.AudioInputError.deadInput = error, listenRetries < 3 {
+                listenRetries += 1
+                BLog.log("AppState: dead input — rebuilding capture (retry \(listenRetries)/3, holdMode=\(lastHoldMode))")
+                Task { [weak self] in
+                    try? await Task.sleep(for: .milliseconds(400))
+                    guard let self, self.state == .listening else { return }
+                    self.startListening(isRetry: true, holdMode: self.lastHoldMode)
+                }
+                return
+            }
             // Recognizer sessions sometimes die the moment they start
             // (kAFAssistantError 1101), usually because TTS hasn't released
             // the audio route yet — that's the "listening flashes then

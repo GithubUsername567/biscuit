@@ -12,6 +12,7 @@ final class AudioInputService: NSObject {
         case recognizerUnavailable
         case noInputDevice
         case noSpeech
+        case deadInput
 
         var errorDescription: String? {
             switch self {
@@ -23,6 +24,8 @@ final class AudioInputService: NSObject {
                 return "No audio input device found."
             case .noSpeech:
                 return "Didn't catch any speech."
+            case .deadInput:
+                return "The microphone produced no audio."
             }
         }
     }
@@ -42,6 +45,9 @@ final class AudioInputService: NSObject {
     private var lastVoiceTime = Date()
     private var heardSpeech = false
     private var autoEndpoint = true
+    /// Loudest buffer seen this session — distinguishes "mic delivering
+    /// silence" (Bluetooth handoff corpse) from "user just quiet".
+    private var peakRMS: Float = 0
 
     /// Tuning for end-of-speech detection.
     private let energyThreshold: Float = 0.012   // RMS above this = speech
@@ -148,13 +154,14 @@ final class AudioInputService: NSObject {
         sessionStart = Date()
         lastVoiceTime = Date()
         heardSpeech = false
-        if autoEndpoint {
-            let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
-                self?.checkEndpoint()
-            }
-            RunLoop.main.add(timer, forMode: .common)
-            endpointTimer = timer
+        peakRMS = 0
+        // Timer runs for hold-to-talk sessions too: endpointing is gated on
+        // autoEndpoint inside, but the dead-input check must always run.
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            self?.checkEndpoint()
         }
+        RunLoop.main.add(timer, forMode: .common)
+        endpointTimer = timer
     }
 
     /// RMS of the buffer; loud enough = the user is speaking.
@@ -168,6 +175,7 @@ final class AudioInputService: NSObject {
             sum += sample * sample
         }
         let rms = (sum / Float(count)).squareRoot()
+        peakRMS = max(peakRMS, rms)
         if rms > energyThreshold {
             heardSpeech = true
             lastVoiceTime = Date()
@@ -177,8 +185,19 @@ final class AudioInputService: NSObject {
     /// Runs ~10×/sec: ends the session when the user has clearly stopped
     /// talking, or times out if nothing was ever heard.
     private func checkEndpoint() {
-        guard isListening, autoEndpoint else { return }
+        guard isListening else { return }
         let now = Date()
+        // Dead input stream: engine running but the mic delivers silence —
+        // happens when capture grabs a Bluetooth input mid-profile-switch
+        // (e.g. right after the wake-word engine releases it). Nothing
+        // throws, so detect it and bail fast for the caller to rebuild.
+        if !heardSpeech, peakRMS < 0.001, latestTranscript.isEmpty,
+           now.timeIntervalSince(sessionStart) > 2 {
+            BLog.log("AudioInput: dead input stream (peakRMS=\(peakRMS)) — aborting for rebuild")
+            finish(.failure(AudioInputError.deadInput))
+            return
+        }
+        guard autoEndpoint else { return }
         if now.timeIntervalSince(sessionStart) > maxDuration {
             stopAndFinalize()
         } else if heardSpeech {
@@ -193,7 +212,7 @@ final class AudioInputService: NSObject {
     /// Stops capturing and lets the recognizer deliver its final transcript.
     func stopAndFinalize() {
         guard isListening else { return }
-        BLog.log("AudioInput: finalizing (heardSpeech=\(heardSpeech), transcript=\(latestTranscript.count) chars)")
+        BLog.log("AudioInput: finalizing (heardSpeech=\(heardSpeech), peakRMS=\(peakRMS), transcript=\(latestTranscript.count) chars)")
         endpointTimer?.invalidate()
         endpointTimer = nil
         stopEngine()

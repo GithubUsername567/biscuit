@@ -17,6 +17,9 @@ final class WakeWordService {
 
     var onWake: (() -> Void)?
 
+    /// True while the service is armed (even if momentarily between sessions).
+    var isRunning: Bool { shouldRun }
+
     private var audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
