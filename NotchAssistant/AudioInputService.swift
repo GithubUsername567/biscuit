@@ -28,7 +28,7 @@ final class AudioInputService: NSObject {
     }
 
     private var audioEngine = AVAudioEngine()
-    private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+    private var recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var latestTranscript = ""
@@ -57,6 +57,9 @@ final class AudioInputService: NSObject {
                         onCompletion: @escaping (Result<String, Error>) -> Void) throws {
         cancelListening()
 
+        // Fresh recognizer per session — reusing one is the known cause of
+        // instant kAFAssistantError 1101 failures on the next session.
+        recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
         guard let recognizer, recognizer.isAvailable else {
             throw AudioInputError.recognizerUnavailable
         }
@@ -134,7 +137,9 @@ final class AudioInputService: NSObject {
             }
         }
         finalizeFallback = fallback
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: fallback)
+        // 0.35s: a real final result lands well under that when it comes at
+        // all; waiting longer just added dead air before every request.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: fallback)
     }
 
     /// Tears everything down without delivering a transcript.

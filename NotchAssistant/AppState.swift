@@ -23,6 +23,8 @@ final class AppState: ObservableObject {
     /// Set when finishListening is called before the async startListening has
     /// actually begun capturing (quick hotkey taps) — applied once it starts.
     private var pendingFinalize = false
+    private var listenStartedAt = Date.distantPast
+    private var didRetryListen = false
 
     /// Keep the last 10 user/assistant exchanges in memory.
     private let maxMessages = 20
@@ -222,10 +224,12 @@ final class AppState: ObservableObject {
         }
     }
 
-    func startListening() {
+    func startListening(isRetry: Bool = false) {
         interruptActivity()
         cancelAutoHide()
         pendingFinalize = false
+        if !isRetry { didRetryListen = false }
+        listenStartedAt = Date()
         Task {
             guard await audio.requestPermissions() else {
                 state = .error(AudioInputService.AudioInputError.permissionDenied.errorDescription ?? "Permission denied.")
@@ -237,9 +241,8 @@ final class AppState: ObservableObject {
                 try self?.audio.startListening(onPartial: { text in
                     Task { @MainActor in
                         self?.inputText = text
-                        // Auto-send once the user stops talking. 2.2s tolerates
-                        // mid-sentence pauses better than shorter windows.
-                        self?.armSilenceTimer(2.2)
+                        // Auto-send once the user stops talking.
+                        self?.armSilenceTimer(1.6)
                     }
                 }, onCompletion: { result in
                     Task { @MainActor in self?.handleTranscription(result) }
@@ -316,8 +319,17 @@ final class AppState: ObservableObject {
             state = .idle
             hidePanel()
         case .failure(let error):
-            // Almost always "no speech detected" from a too-quick tap of the
-            // hotkey. Spoken errors here feel like the prompt "didn't go
+            // Recognizer sessions occasionally die the moment they start
+            // (kAFAssistantError 1101) — that's the "listening flashes then
+            // vanishes" glitch. Retry once, transparently.
+            if Date().timeIntervalSince(listenStartedAt) < 1.5, !didRetryListen {
+                didRetryListen = true
+                NSLog("Recognizer died instantly (\(error.localizedDescription)) — retrying listen")
+                startListening(isRetry: true)
+                return
+            }
+            // Otherwise: almost always "no speech detected" from a too-quick
+            // tap. Spoken errors here feel like the prompt "didn't go
             // through" — just log and slip away instead.
             NSLog("Speech recognition ended without transcript: \(error.localizedDescription)")
             state = .idle
