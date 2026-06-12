@@ -70,6 +70,14 @@
     text-shadow: 4px 4px 0 rgba(0,0,0,.45);
   }
   .hero p.tag { font-size: clamp(17px, 2.6vw, 22px); font-weight: 500; }
+  .pet-row { display: flex; gap: 10px; justify-content: center; margin: 14px 0 2px; }
+  .pet-row canvas {
+    width: 40px; height: 40px; image-rendering: pixelated; cursor: pointer;
+    opacity: .4; border-radius: 9px; padding: 4px; transition: all .15s;
+    border: 2px solid transparent;
+  }
+  .pet-row canvas:hover { opacity: .8; transform: translateY(-2px); }
+  .pet-row canvas.sel { opacity: 1; border-color: rgba(201,138,75,.5); background: rgba(201,138,75,.12); }
   .demo-gif {
     display: block; width: 100%; max-width: 880px; margin: 0 auto;
     border: 3px solid var(--cocoa, #4A2E19); border-radius: 12px;
@@ -173,6 +181,7 @@
       <div class="glow"></div>
       <canvas id="dog-hero" width="16" height="16" style="width:192px;height:192px"></canvas>
     </div>
+    <div class="pet-row" id="pet-row" title="choose your companion"></div>
     <h1 class="px">BISCUIT</h1>
     <p class="tag">The pixel pup that runs your Mac.</p>
     <p class="sub">
@@ -198,6 +207,11 @@
     <h2 class="px"><span class="paw">▸</span> TRICKS</h2>
     <p class="section-sub">Good boy. Very capable boy.</p>
     <div class="grid">
+      <div class="card">
+        <div class="emoji">🐾</div>
+        <h3>Pick your pet</h3>
+        <p>Shiba, husky, golden retriever, cat, or parrot — five pixel companions, all pettable, all animated. Swap any time in Settings.</p>
+      </div>
       <div class="card">
         <div class="emoji">🦴</div>
         <h3>Does, not explains</h3>
@@ -297,70 +311,89 @@
 
 <script>
 // Same sprite maps as the app — single source of truth, drawn on canvas.
-const PALETTE = { B: "#C98A4B", D: "#4A2E19", W: "#F2E4D0", K: "#1C1C1E", P: "#E66A8A" };
+// Same sprite maps as the app — single source of truth, drawn on canvas.
+const DOG_IDLE_A = [
+"................","..D.........D...","..DD.......DD...","..DBD.....DBD...",
+"...DBBBBBBBD....","...DBKBBBKBD....","...DBBBBBBBD....","...DBWWKWWBD....",
+"...DBBWWWBBD....","....DBBBBBD.....","...DBBBBBBBD....","..DBBBBBBBBBD...",
+"..DBWWBBBWWBD.D.","..DBWWBBBWWBDD..","..DDDDDDDDDDD...","................"];
+const DOG_IDLE_B = [
+"................","..D.........D...","..DD.......DD...","..DBD.....DBD...",
+"...DBBBBBBBD....","...DBKBBBKBD....","...DBBBBBBBD....","...DBWWKWWBD....",
+"...DBBWWWBBD....","....DBBBBBD.....","...DBBBBBBBD..D.","..DBBBBBBBBBD.D.",
+"..DBWWBBBWWBDD..","..DBWWBBBWWBD...","..DDDDDDDDDDD...","................"];
+const DOG_HAPPY_A = [
+"..D.........D...","..DD.......DD...","..DBD.....DBD...","..DBBD...DBBD...",
+"...DBBBBBBBD....","...DBKBBBKBD....","...DBBBBBBBD....","...DBWWKWWBD....",
+"...DBBWWWBBD....","....DBBBBBD.....","...DBBBBBBBD....","..DBBBBBBBBBD...",
+"..DBWWBBBWWBD.D.","..DBWWBBBWWBDD..","..DDDDDDDDDDD...","................"];
+const DOG_HAPPY_B = [
+"..D.........D...","..DD.......DD...","..DBD.....DBD...","..DBBD...DBBD...",
+"...DBBBBBBBD....","...DBKBBBKBD....","...DBBBBBBBD....","...DBWWKWWBD....",
+"...DBBWWWBBD....","....DBBBBBD.....","...DBBBBBBBD..D.","..DBBBBBBBBBD.D.",
+"..DBWWBBBWWBDD..","..DBWWBBBWWBD...","..DDDDDDDDDDD...","................"];
 
-const TAIL_DOWN = [
-"................",
-"..D.........D...",
-"..DD.......DD...",
-"..DBD.....DBD...",
-"...DBBBBBBBD....",
-"...DBKBBBKBD....",
-"...DBBBBBBBD....",
-"...DBWWKWWBD....",
-"...DBBWWWBBD....",
-"....DBBBBBD.....",
-"...DBBBBBBBD....",
-"..DBBBBBBBBBD...",
-"..DBWWBBBWWBD.D.",
-"..DBWWBBBWWBDD..",
-"..DDDDDDDDDDD...",
-"................",
-];
-const TAIL_UP = [
-"................",
-"..D.........D...",
-"..DD.......DD...",
-"..DBD.....DBD...",
-"...DBBBBBBBD....",
-"...DBKBBBKBD....",
-"...DBBBBBBBD....",
-"...DBWWKWWBD....",
-"...DBBWWWBBD....",
-"....DBBBBBD.....",
-"...DBBBBBBBD..D.",
-"..DBBBBBBBBBD.D.",
-"..DBWWBBBWWBDD..",
-"..DBWWBBBWWBD...",
-"..DDDDDDDDDDD...",
-"................",
-];
-const EARS_UP_A = [
-"..D.........D...",
-"..DD.......DD...",
-"..DBD.....DBD...",
-"..DBBD...DBBD...",
-"...DBBBBBBBD....",
-"...DBKBBBKBD....",
-"...DBBBBBBBD....",
-"...DBWWKWWBD....",
-"...DBBWWWBBD....",
-"....DBBBBBD.....",
-"...DBBBBBBBD....",
-"..DBBBBBBBBBD...",
-"..DBWWBBBWWBD.D.",
-"..DBWWBBBWWBDD..",
-"..DDDDDDDDDDD...",
-"................",
-];
-const EARS_UP_B = EARS_UP_A.map((row, i) => TAIL_UP[i].includes("D.") && i >= 10 && i <= 13 ? TAIL_UP[i] : row);
+const CAT_IDLE_A = [
+"................","....D.....D.....","...DPD...DPD....","...DBBBBBBBD....",
+"...DBKBBBKBD....","...DBBBBBBBD....","...DBWWPWWBD....","...DBBWWWBBD....",
+"....DBBBBBD.....","...DBBBBBBBD....","..DBBBBBBBBBD...","..DBWWBBBWWBD.D.",
+"..DBWWBBBWWBDD..","..DDDDDDDDDDD...","................","................"];
+const CAT_IDLE_B = [
+"................","....D.....D.....","...DPD...DPD....","...DBBBBBBBD....",
+"...DBKBBBKBD....","...DBBBBBBBD....","...DBWWPWWBD....","...DBBWWWBBD....",
+"....DBBBBBD.....","...DBBBBBBBD..D.","..DBBBBBBBBBD.D.","..DBWWBBBWWBDD..",
+"..DBWWBBBWWBD...","..DDDDDDDDDDD...","................","................"];
+const CAT_HAPPY_A = [
+"....D.....D.....","...DPD...DPD....","...DPD...DPD....","...DBBBBBBBD....",
+"...DBKBBBKBD....","...DBBBBBBBD....","...DBWWPWWBD....","...DBBWWWBBD....",
+"....DBBBBBD.....","...DBBBBBBBD....","..DBBBBBBBBBD...","..DBWWBBBWWBD.D.",
+"..DBWWBBBWWBDD..","..DDDDDDDDDDD...","................","................"];
+const CAT_HAPPY_B = [
+"....D.....D.....","...DPD...DPD....","...DPD...DPD....","...DBBBBBBBD....",
+"...DBKBBBKBD....","...DBBBBBBBD....","...DBWWPWWBD....","...DBBWWWBBD....",
+"....DBBBBBD.....","...DBBBBBBBD..D.","..DBBBBBBBBBD.D.","..DBWWBBBWWBDD..",
+"..DBWWBBBWWBD...","..DDDDDDDDDDD...","................","................"];
 
-function draw(canvas, map) {
+const PARROT_IDLE_A = [
+"................",".....DRRD.......","....DRRRRD......","....DGGGGGD.....",
+"...DGGGGGGGD....","...DGKGGGKGD....","...DGGOOOGGD....","...DGGGOGGGD....",
+"...DGYYYYYGD....","...DGYYYYYGD....","..DGGYYYYYGGD...","...DGGYYYGGD....",
+"....DGGGGGD.....",".....DODOD......","................","................"];
+const PARROT_IDLE_B = [
+"................",".....DRRD.......","....DRRRRD......","....DGGGGGD.....",
+"...DGGGGGGGD....","...DGKGGGKGD....","...DGGOOOGGD....","...DGGGOGGGD....",
+"...DGYYYYYGD....","...DGYYYYYGD....",".DGGGYYYYYGGGD..","...DGGYYYGGD....",
+"....DGGGGGD.....",".....DODOD......","................","................"];
+const PARROT_HAPPY_A = [
+".....DRRD.......","....DRRRRD......","....DRRRRD......","....DGGGGGD.....",
+"...DGGGGGGGD....","...DGKGGGKGD....","...DGGOOOGGD....","...DGGGOGGGD....",
+"...DGYYYYYGD....","...DGYYYYYGD....","..DGGYYYYYGGD...","...DGGYYYGGD....",
+"....DGGGGGD.....",".....DODOD......","................","................"];
+const PARROT_HAPPY_B = [
+".....DRRD.......","....DRRRRD......","....DRRRRD......","....DGGGGGD.....",
+"...DGGGGGGGD....","...DGKGGGKGD....","...DGGOOOGGD....","...DGGGOGGGD....",
+"...DGYYYYYGD....","...DGYYYYYGD....",".DGGGYYYYYGGGD..","...DGGYYYGGD....",
+"....DGGGGGD.....",".....DODOD......","................","................"];
+
+const SPECIES = {
+  shiba:  { pal: { B:"#C98A4B", D:"#4A2E19", W:"#F2E4D0", K:"#1C1C1E", P:"#E66A8A" },
+            idle: [DOG_IDLE_A, DOG_IDLE_B], happy: [DOG_HAPPY_A, DOG_HAPPY_B] },
+  husky:  { pal: { B:"#8C94A3", D:"#262B36", W:"#EDF0F5", K:"#1A1A1F", P:"#E66A8A" },
+            idle: [DOG_IDLE_A, DOG_IDLE_B], happy: [DOG_HAPPY_A, DOG_HAPPY_B] },
+  golden: { pal: { B:"#DEAB57", D:"#6B421A", W:"#F7EBC7", K:"#1F1A17", P:"#E66A8A" },
+            idle: [DOG_IDLE_A, DOG_IDLE_B], happy: [DOG_HAPPY_A, DOG_HAPPY_B] },
+  cat:    { pal: { B:"#E08F40", D:"#522B14", W:"#F7EBD6", K:"#211F1F", P:"#EB7A94" },
+            idle: [CAT_IDLE_A, CAT_IDLE_B], happy: [CAT_HAPPY_A, CAT_HAPPY_B] },
+  parrot: { pal: { G:"#38A34D", D:"#123B1F", Y:"#F2C738", O:"#F08A24", R:"#D93D33", K:"#1A1A1C" },
+            idle: [PARROT_IDLE_A, PARROT_IDLE_B], happy: [PARROT_HAPPY_A, PARROT_HAPPY_B] },
+};
+
+function draw(canvas, map, pal) {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, 16, 16);
   map.forEach((row, y) => {
     [...row].forEach((ch, x) => {
-      const color = PALETTE[ch];
+      const color = pal[ch];
       if (color) { ctx.fillStyle = color; ctx.fillRect(x, y, 1, 1); }
     });
   });
@@ -369,20 +402,43 @@ function draw(canvas, map) {
 const hero = document.getElementById("dog-hero");
 const navDog = document.getElementById("dog-nav");
 const stage = document.getElementById("dog-stage");
+const petRow = document.getElementById("pet-row");
 let frame = 0;
 let petting = false;
+let current = localStorage.getItem("biscuit-pet") in SPECIES
+  ? localStorage.getItem("biscuit-pet") : "shiba";
 stage.addEventListener("mouseenter", () => petting = true);
 stage.addEventListener("mouseleave", () => petting = false);
 
-function tick() {
-  frame = 1 - frame;
-  const idle = frame ? TAIL_UP : TAIL_DOWN;
-  const happy = frame ? EARS_UP_B : EARS_UP_A;
-  draw(hero, petting ? happy : idle);
-  draw(navDog, idle);
+const buttons = {};
+for (const name of Object.keys(SPECIES)) {
+  const c = document.createElement("canvas");
+  c.width = 16; c.height = 16;
+  c.title = name;
+  c.addEventListener("click", () => {
+    current = name;
+    localStorage.setItem("biscuit-pet", name);
+    updateSelection();
+    render();
+  });
+  draw(c, SPECIES[name].idle[0], SPECIES[name].pal);
+  petRow.appendChild(c);
+  buttons[name] = c;
 }
-draw(hero, TAIL_DOWN);
-draw(navDog, TAIL_DOWN);
+function updateSelection() {
+  for (const [name, c] of Object.entries(buttons)) {
+    c.classList.toggle("sel", name === current);
+  }
+}
+updateSelection();
+
+function render() {
+  const s = SPECIES[current];
+  draw(hero, (petting ? s.happy : s.idle)[frame], s.pal);
+  draw(navDog, s.idle[frame], s.pal);
+}
+function tick() { frame = 1 - frame; render(); }
+render();
 setInterval(tick, 450);
 </script>
 </body>

@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.edgeVoiceName) private var edgeVoiceName = ""
     @AppStorage(SettingsKeys.showCompanion) private var showCompanion = true
     @AppStorage(SettingsKeys.wakeWordEnabled) private var wakeWordEnabled = true
+    @AppStorage(SettingsKeys.companionSpecies) private var companionSpecies = CompanionSpecies.shiba.rawValue
     @AppStorage(SettingsKeys.launchAtLogin) private var launchAtLogin = true
     @AppStorage(SettingsKeys.brainMode) private var brainMode = "local"
     @AppStorage(SettingsKeys.geminiPlannerModel) private var plannerModel = ""
@@ -164,7 +165,13 @@ struct SettingsView: View {
                 }
 
                 Section("General") {
-                    Toggle("Show companion dog", isOn: $showCompanion)
+                    Toggle("Show companion pet", isOn: $showCompanion)
+                    Picker("Companion", selection: $companionSpecies) {
+                        ForEach(CompanionSpecies.allCases) { species in
+                            Text(species.label).tag(species.rawValue)
+                        }
+                    }
+                    .disabled(!showCompanion)
                     Toggle("Launch at login", isOn: $launchAtLogin)
                         .onChange(of: launchAtLogin) { _, newValue in
                             LaunchAtLogin.set(enabled: newValue)
@@ -223,6 +230,7 @@ struct SettingsView: View {
         geminiVoiceName = ""
         elevenLabsVoiceID = ""
         showCompanion = true
+        companionSpecies = CompanionSpecies.shiba.rawValue
         wakeWordEnabled = true
         launchAtLogin = true
         brainMode = "local"

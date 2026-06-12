@@ -159,6 +159,11 @@ struct CompanionView: View {
     @EnvironmentObject private var appState: AppState
     var actions: CompanionActions
     @State private var petting = false
+    @AppStorage(SettingsKeys.companionSpecies) private var speciesName = CompanionSpecies.shiba.rawValue
+
+    private var species: CompanionSpecies {
+        CompanionSpecies(rawValue: speciesName) ?? .shiba
+    }
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 6) {
@@ -179,7 +184,7 @@ struct CompanionView: View {
                         .fill(auraColor.opacity(auraColor == .clear ? (petting ? 0.25 : 0) : 0.4))
                         .blur(radius: 12)
                         .frame(width: 78, height: 78)
-                    PixelArtView(map: displayFrames[frame])
+                    PixelArtView(map: displayFrames[frame], palette: PixelPet.palette(for: species))
                         .frame(width: 80, height: 80)
                         .offset(y: bounceOffset(frame))
                     if petting {
@@ -219,12 +224,12 @@ struct CompanionView: View {
         .help("Click to talk · drag to move · right-click for options")
     }
 
-    /// Petting an idle dog makes him perk up.
+    /// Petting an idle pet makes it perk up.
     private var displayFrames: [[String]] {
         if petting, appState.state == .idle {
-            return PixelDog.frames(for: .listening)
+            return PixelPet.frames(species: species, state: .listening)
         }
-        return PixelDog.frames(for: appState.state)
+        return PixelPet.frames(species: species, state: appState.state)
     }
 
     /// Live feedback while everything happens in the background.
@@ -264,6 +269,7 @@ struct CompanionView: View {
 
 struct PixelArtView: View {
     let map: [String]
+    let palette: [Character: Color]
 
     var body: some View {
         Canvas { context, size in
@@ -272,7 +278,7 @@ struct PixelArtView: View {
             let cell = min(size.width / CGFloat(cols), size.height / CGFloat(rows))
             for (y, row) in map.enumerated() {
                 for (x, character) in row.enumerated() {
-                    guard let color = PixelDog.palette[character] else { continue }
+                    guard let color = palette[character] else { continue }
                     // +0.5 overlap hides hairline seams between cells.
                     let rect = CGRect(
                         x: CGFloat(x) * cell,
@@ -285,142 +291,4 @@ struct PixelArtView: View {
             }
         }
     }
-}
-
-/// 16×16 pixel shiba. '.' = transparent, B = body, D = dark outline,
-/// W = cream, K = black (eyes/nose), P = pink (tongue).
-enum PixelDog {
-
-    static let palette: [Character: Color] = [
-        "B": Color(red: 0.79, green: 0.54, blue: 0.29),
-        "D": Color(red: 0.29, green: 0.18, blue: 0.10),
-        "W": Color(red: 0.95, green: 0.89, blue: 0.82),
-        "K": Color(red: 0.11, green: 0.11, blue: 0.12),
-        "P": Color(red: 0.90, green: 0.42, blue: 0.54),
-    ]
-
-    static func frames(for state: AssistantState) -> [[String]] {
-        switch state {
-        case .listening: [earsUpTailDown, earsUpTailUp]
-        case .responding: [speakingClosed, speakingTongue]
-        case .error: [earsDown, earsDown]
-        default: [baseTailDown, baseTailUp]
-        }
-    }
-
-    static let baseTailDown: [String] = [
-        "................",
-        "..D.........D...",
-        "..DD.......DD...",
-        "..DBD.....DBD...",
-        "...DBBBBBBBD....",
-        "...DBKBBBKBD....",
-        "...DBBBBBBBD....",
-        "...DBWWKWWBD....",
-        "...DBBWWWBBD....",
-        "....DBBBBBD.....",
-        "...DBBBBBBBD....",
-        "..DBBBBBBBBBD...",
-        "..DBWWBBBWWBD.D.",
-        "..DBWWBBBWWBDD..",
-        "..DDDDDDDDDDD...",
-        "................",
-    ]
-
-    static let baseTailUp: [String] = [
-        "................",
-        "..D.........D...",
-        "..DD.......DD...",
-        "..DBD.....DBD...",
-        "...DBBBBBBBD....",
-        "...DBKBBBKBD....",
-        "...DBBBBBBBD....",
-        "...DBWWKWWBD....",
-        "...DBBWWWBBD....",
-        "....DBBBBBD.....",
-        "...DBBBBBBBD..D.",
-        "..DBBBBBBBBBD.D.",
-        "..DBWWBBBWWBDD..",
-        "..DBWWBBBWWBD...",
-        "..DDDDDDDDDDD...",
-        "................",
-    ]
-
-    static let earsUpTailDown: [String] = [
-        "..D.........D...",
-        "..DD.......DD...",
-        "..DBD.....DBD...",
-        "..DBBD...DBBD...",
-        "...DBBBBBBBD....",
-        "...DBKBBBKBD....",
-        "...DBBBBBBBD....",
-        "...DBWWKWWBD....",
-        "...DBBWWWBBD....",
-        "....DBBBBBD.....",
-        "...DBBBBBBBD....",
-        "..DBBBBBBBBBD...",
-        "..DBWWBBBWWBD.D.",
-        "..DBWWBBBWWBDD..",
-        "..DDDDDDDDDDD...",
-        "................",
-    ]
-
-    static let earsUpTailUp: [String] = [
-        "..D.........D...",
-        "..DD.......DD...",
-        "..DBD.....DBD...",
-        "..DBBD...DBBD...",
-        "...DBBBBBBBD....",
-        "...DBKBBBKBD....",
-        "...DBBBBBBBD....",
-        "...DBWWKWWBD....",
-        "...DBBWWWBBD....",
-        "....DBBBBBD.....",
-        "...DBBBBBBBD..D.",
-        "..DBBBBBBBBBD.D.",
-        "..DBWWBBBWWBDD..",
-        "..DBWWBBBWWBD...",
-        "..DDDDDDDDDDD...",
-        "................",
-    ]
-
-    static let speakingClosed = baseTailUp
-
-    static let speakingTongue: [String] = [
-        "................",
-        "..D.........D...",
-        "..DD.......DD...",
-        "..DBD.....DBD...",
-        "...DBBBBBBBD....",
-        "...DBKBBBKBD....",
-        "...DBBBBBBBD....",
-        "...DBWWKWWBD....",
-        "...DBBWPWBBD....",
-        "....DBBPBBD.....",
-        "...DBBBBBBBD....",
-        "..DBBBBBBBBBD...",
-        "..DBWWBBBWWBD.D.",
-        "..DBWWBBBWWBDD..",
-        "..DDDDDDDDDDD...",
-        "................",
-    ]
-
-    static let earsDown: [String] = [
-        "................",
-        "................",
-        "..DD.......DD...",
-        "..DBDD...DDBD...",
-        "...DBBBBBBBD....",
-        "...DBKBBBKBD....",
-        "...DBBBBBBBD....",
-        "...DBWWKWWBD....",
-        "...DBBWWWBBD....",
-        "....DBBBBBD.....",
-        "...DBBBBBBBD....",
-        "..DBBBBBBBBBD...",
-        "..DBWWBBBWWBD...",
-        "..DBWWBBBWWBD...",
-        "..DDDDDDDDDDD...",
-        "................",
-    ]
 }

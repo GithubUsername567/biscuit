@@ -11,6 +11,8 @@
 
 Local-first voice agent for macOS 14+: SwiftUI + AppKit, Ollama for the brain, on-device speech recognition, free neural TTS. No accounts, no telemetry.
 
+Pick your companion in Settings: shiba, husky, golden retriever, cat, or parrot — all pixel-art, all pettable.
+
 Brand kit + website: [`branding/`](branding/) · Site: `branding/website/index.html`
 
 ## Install
