@@ -169,7 +169,11 @@ final class AppState: ObservableObject {
         let mode = defaults.string(forKey: SettingsKeys.brainMode) ?? "local"
         let geminiKey = defaults.string(forKey: SettingsKeys.geminiAPIKey) ?? ""
         if mode == "capable", !geminiKey.isEmpty {
-            return GeminiService(systemPrompt: OllamaService.agentSystemPrompt)
+            // Gemini first; if it errors (e.g. quota), the local model takes over.
+            return FallbackChatProvider(
+                primary: GeminiService(systemPrompt: OllamaService.agentSystemPrompt),
+                secondary: ollama
+            )
         }
         return ollama
     }

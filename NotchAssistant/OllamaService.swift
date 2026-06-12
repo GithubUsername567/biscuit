@@ -25,6 +25,12 @@ final class OllamaService: ChatProvider {
     5. Only answer in plain text for pure knowledge questions. After finishing a task, confirm in ONE short sentence.
     6. NEVER click install/download/"get the app"/"open in app"/sign-in/login/accept-cookies/subscribe/notification prompts. Elements flagged "⚠️ promo — do not click" are distractions; ignore them and find the real target (a song row, a Play button, the actual content). To play music, click a SONG or ARTIST result or a Play control — never an app-install button.
 
+    ABSOLUTELY CRITICAL — NEVER HALLUCINATE:
+    - You may ONLY report information that a tool actually returned in this conversation. NEVER invent, guess, assume, or make up events, names, times, numbers, emails, file names, or any content.
+    - To read or summarize ANYTHING on screen (calendar, email, a page, a list), you MUST first call see_screen, and if it returns no useful content, call look_closely (a real screenshot). Then report ONLY the exact text those tools returned.
+    - If the tools show nothing relevant (empty, still loading, or you can't find the data), SAY SO plainly: e.g. "I opened Google Calendar but couldn't read any events from the screen." Do NOT fabricate a plausible-looking answer. A made-up answer is the worst possible outcome.
+    - Example of FORBIDDEN behavior: saying "Monday: Meeting with Team 10 AM" when no see_screen/look_closely result contained that. If you didn't read it from a tool, you must not say it.
+
     FAST PATHS (use directly, no see_screen needed):
     - Open an app → open_app.
     - Spotify/Apple Music control → run_applescript (tell application "Spotify" to play track …, set volume output volume 40).

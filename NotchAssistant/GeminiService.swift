@@ -1,5 +1,47 @@
 import Foundation
 
+/// Tries a primary brain (e.g. Gemini) and silently falls back to a secondary
+/// (local Ollama) if the primary fails before producing anything — so a
+/// Gemini quota/network error doesn't dead-end; the local model takes over.
+struct FallbackChatProvider: ChatProvider {
+    let primary: ChatProvider
+    let secondary: ChatProvider
+
+    func stream(messages: [OllamaMessage]) -> AsyncThrowingStream<OllamaStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                var emitted = false
+                do {
+                    for try await event in primary.stream(messages: messages) {
+                        emitted = true
+                        continuation.yield(event)
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish(throwing: CancellationError())
+                } catch {
+                    // Only fall back if the primary produced nothing yet;
+                    // mid-stream failures can't be cleanly restarted.
+                    guard !emitted else {
+                        continuation.finish(throwing: error)
+                        return
+                    }
+                    NSLog("Primary brain failed (\(error.localizedDescription)) — falling back to local model")
+                    do {
+                        for try await event in secondary.stream(messages: messages) {
+                            continuation.yield(event)
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}
+
 /// Cloud "brain": Gemini with function calling, used in Capable mode.
 /// Mirrors OllamaService by emitting the same OllamaStreamEvent values so the
 /// agent loop in AppState is identical regardless of backend.

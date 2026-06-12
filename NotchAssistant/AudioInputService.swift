@@ -69,8 +69,12 @@ final class AudioInputService: NSObject {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
-        if recognizer.supportsOnDeviceRecognition {
-            request.requiresOnDeviceRecognition = true // keep audio on this Mac
+        // Allow Apple's online recognizer (like Siri dictation): markedly more
+        // accurate and reliably finalizes vs the on-device-only model, which
+        // dropped short commands. Audio goes to Apple only, no third party.
+        request.requiresOnDeviceRecognition = false
+        if #available(macOS 13.0, *) {
+            request.addsPunctuation = true
         }
         recognitionRequest = request
         latestTranscript = ""
