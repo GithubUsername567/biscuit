@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -6,17 +7,22 @@ import SwiftUI
 @MainActor
 final class AppState: ObservableObject {
 
-    @Published var state: AssistantState = .idle
+    @Published var state: AssistantState = .idle {
+        didSet { syncWakeWord() }
+    }
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
     @Published var showSettings = false
 
     /// Set by the app delegate so views can ask the floating panel to close.
     var onRequestHide: (@MainActor () -> Void)?
+    /// Set by the app delegate so the wake word can pop the panel.
+    var onRequestShow: (@MainActor () -> Void)?
 
     private let ollama = OllamaService()
     private let audio = AudioInputService()
     private let speech = SpeechService()
+    private let wakeWord = WakeWordService()
     private var generationTask: Task<Void, Never>?
     private var autoHideTask: Task<Void, Never>?
     /// Set when finishListening is called before the async startListening has
@@ -36,6 +42,7 @@ final class AppState: ObservableObject {
                 self.scheduleAutoHide(after: 1.0)
             }
         }
+        wakeWord.onWake = { [weak self] in self?.handleWake() }
     }
 
     // MARK: - Settings (UserDefaults-backed; SettingsView writes via @AppStorage)
@@ -209,6 +216,29 @@ final class AppState: ObservableObject {
                 return nil
             }
         }
+    }
+
+    // MARK: - Wake word
+
+    var wakeWordEnabled: Bool {
+        UserDefaults.standard.object(forKey: SettingsKeys.wakeWordEnabled) as? Bool ?? true
+    }
+
+    /// Keeps the wake listener running exactly when the assistant is idle.
+    /// Called on every state change and when settings change.
+    func syncWakeWord() {
+        if wakeWordEnabled, state == .idle {
+            wakeWord.start()
+        } else {
+            wakeWord.stop()
+        }
+    }
+
+    private func handleWake() {
+        guard state == .idle else { return }
+        NSSound(named: "Pop")?.play()
+        onRequestShow?()
+        startListening()
     }
 
     // MARK: - Voice input
@@ -400,6 +430,9 @@ final class AppState: ObservableObject {
     private func interruptActivity() {
         generationTask?.cancel()
         generationTask = nil
+        // Release the wake engine before the capture engine starts; state
+        // didSet would stop it anyway, but only after the async start races.
+        wakeWord.stop()
         audio.cancelListening()
         speech.stop()
     }

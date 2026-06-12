@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         windowController = FloatingWindowController(appState: appState)
         appState.onRequestHide = { [weak self] in self?.windowController.hide() }
+        appState.onRequestShow = { [weak self] in self?.windowController.show() }
 
         companionController = CompanionWindowController(appState: appState)
         // Dog click: background listen toggle — no panel.
@@ -83,9 +84,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.syncCompanionVisibility() }
+            Task { @MainActor in
+                self?.syncCompanionVisibility()
+                self?.appState.syncWakeWord()
+            }
         }
         syncCompanionVisibility()
+        // Initial arm — state didSet only covers later transitions.
+        appState.syncWakeWord()
     }
 
     private func syncCompanionVisibility() {

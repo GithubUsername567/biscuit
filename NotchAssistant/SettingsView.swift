@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.ttsEngine) private var ttsEngine = "edge"
     @AppStorage(SettingsKeys.edgeVoiceName) private var edgeVoiceName = ""
     @AppStorage(SettingsKeys.showCompanion) private var showCompanion = true
+    @AppStorage(SettingsKeys.wakeWordEnabled) private var wakeWordEnabled = true
     @AppStorage(SettingsKeys.launchAtLogin) private var launchAtLogin = true
     @AppStorage(SettingsKeys.brainMode) private var brainMode = "local"
     @AppStorage(SettingsKeys.geminiPlannerModel) private var plannerModel = ""
@@ -110,6 +111,13 @@ struct SettingsView: View {
                     TextField("Voice ID (blank = Rachel)", text: $elevenLabsVoiceID)
                         .autocorrectionDisabled()
                     Text("Paste a free API key from elevenlabs.io (10k characters/month free). When set, responses use ElevenLabs instead of the system voice.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Wake Word") {
+                    Toggle("Listen for “Biscuit”", isOn: $wakeWordEnabled)
+                    Text("Say “Biscuit” any time and the dog pops up listening — no hotkey needed. Detection runs fully on-device; nothing you say leaves this Mac.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -215,6 +223,7 @@ struct SettingsView: View {
         geminiVoiceName = ""
         elevenLabsVoiceID = ""
         showCompanion = true
+        wakeWordEnabled = true
         launchAtLogin = true
         brainMode = "local"
         plannerModel = ""
