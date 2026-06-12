@@ -210,7 +210,7 @@
       <div class="card">
         <div class="emoji">🐾</div>
         <h3>Pick your pet</h3>
-        <p>Shiba, husky, golden retriever, cat, or parrot — five pixel companions, all pettable, all animated. Swap any time in Settings.</p>
+        <p>Shiba, husky, golden retriever, cat, parrot, seal, or penguin — seven pixel companions, all pettable, all animated. Swap any time in Settings.</p>
       </div>
       <div class="card">
         <div class="emoji">🦴</div>
@@ -375,6 +375,37 @@ const PARROT_HAPPY_B = [
 "...DGYYYYYGD....","...DGYYYYYGD....",".DGGGYYYYYGGGD..","...DGGYYYGGD....",
 "....DGGGGGD.....",".....DODOD......","................","................"];
 
+const SEAL_IDLE_A = [
+"................","................","....DBBBBBD.....","...DBBBBBBBD....",
+"...DBKBBBKBD....","...DBBBBBBBD....","...DBWWKWWBD....","....DBWWWBD.....",
+"...DBBBBBBBD....","..DBBBBBBBBBD...","..DBWWWWWWWBD...","..DBWWWWWWWBD...",
+"...DBBBBBBBD....","..DBBD....DBBD..","..DDDD....DDDD..","................"];
+const SEAL_IDLE_B = [
+"................","................","....DBBBBBD.....","...DBBBBBBBD....",
+"...DBKBBBKBD....","...DBBBBBBBD....","...DBWWKWWBD....","....DBWWWBD.....",
+"...DBBBBBBBD....","..DBBBBBBBBBD...","..DBWWWWWWWBD...","..DBWWWWWWWBD...",
+"..DDBBBBBBBDD...",".DBBD......DBBD.",".DDDD......DDDD.","................"];
+const SEAL_HAPPY_A = [
+"................","....DBBBBBD.....","...DBBBBBBBD....","...DBKBBBKBD....",
+"...DBBBBBBBD....","...DBWWKWWBD....","....DBWWWBD.....","...DBBBBBBBD....",
+"..DBBBBBBBBBD...","..DBWWWWWWWBD...","..DBWWWWWWWBD...","..DBWWWWWWWBD...",
+"...DBBBBBBBD....","..DBBD....DBBD..","..DDDD....DDDD..","................"];
+const PENGUIN_IDLE_A = [
+"................","....DBBBBBD.....","...DBBBBBBBD....","...DBWWWWWBD....",
+"...DBWKWKWBD....","...DBWWOWWBD....","...DBWOOOWBD....","...DBWWWWWBD....",
+"..DBBWWWWWBBD...","..DBBWWWWWBBD...","..DBBWWWWWBBD...","...DBWWWWWBD....",
+"....DBBBBBD.....","....DOODOOD.....","................","................"];
+const PENGUIN_IDLE_B = [
+"................","....DBBBBBD.....","...DBBBBBBBD....","...DBWWWWWBD....",
+"...DBWKWKWBD....","...DBWWOWWBD....","...DBWOOOWBD....","...DBWWWWWBD....",
+".DBBBWWWWWBBBD..","..DBBWWWWWBBD...","..DBBWWWWWBBD...","...DBWWWWWBD....",
+"....DBBBBBD.....","....DOODOOD.....","................","................"];
+const PENGUIN_HAPPY_A = [
+"....DBBBBBD.....","...DBBBBBBBD....","...DBWWWWWBD....","...DBWKWKWBD....",
+"...DBWWOWWBD....","...DBWOOOWBD....","...DBWWWWWBD....","..DBBWWWWWBBD...",
+".DBBBWWWWWBBBD..","..DBBWWWWWBBD...","..DBBWWWWWBBD...","...DBWWWWWBD....",
+"....DBBBBBD.....","....DOODOOD.....","................","................"];
+
 const SPECIES = {
   shiba:  { pal: { B:"#C98A4B", D:"#4A2E19", W:"#F2E4D0", K:"#1C1C1E", P:"#E66A8A" },
             idle: [DOG_IDLE_A, DOG_IDLE_B], happy: [DOG_HAPPY_A, DOG_HAPPY_B] },
@@ -386,6 +417,10 @@ const SPECIES = {
             idle: [CAT_IDLE_A, CAT_IDLE_B], happy: [CAT_HAPPY_A, CAT_HAPPY_B] },
   parrot: { pal: { G:"#38A34D", D:"#123B1F", Y:"#F2C738", O:"#F08A24", R:"#D93D33", K:"#1A1A1C" },
             idle: [PARROT_IDLE_A, PARROT_IDLE_B], happy: [PARROT_HAPPY_A, PARROT_HAPPY_B] },
+  seal:   { pal: { B:"#A8B5C7", D:"#384254", W:"#EDF2F7", K:"#1F1F24", P:"#E66A8A" },
+            idle: [SEAL_IDLE_A, SEAL_IDLE_B], happy: [SEAL_HAPPY_A, SEAL_HAPPY_A] },
+  penguin:{ pal: { B:"#242938", D:"#0D0F17", W:"#F2F5FA", K:"#1A1A1F", O:"#F09929" },
+            idle: [PENGUIN_IDLE_A, PENGUIN_IDLE_B], happy: [PENGUIN_HAPPY_A, PENGUIN_HAPPY_A] },
 };
 
 function draw(canvas, map, pal) {
