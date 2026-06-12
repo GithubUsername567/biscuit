@@ -48,6 +48,7 @@ final class WakeWordService {
 
     func stop() {
         guard shouldRun else { return }
+        BLog.log("WakeWord: stopped")
         shouldRun = false
         teardownSession()
     }
@@ -59,11 +60,20 @@ final class WakeWordService {
         let gen = generation
 
         // Never prompt from here — permissions are requested by the normal
-        // listening flow. Until granted, the wake word just stays dormant.
+        // listening flow. Retry on a slow heartbeat so a grant (or the
+        // recognizer coming back) re-arms the wake word without a relaunch.
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
-              SFSpeechRecognizer.authorizationStatus() == .authorized else { return }
+              SFSpeechRecognizer.authorizationStatus() == .authorized else {
+            BLog.log("WakeWord: permissions not granted yet — checking again in 30s")
+            scheduleRestart(after: 30, generation: gen)
+            return
+        }
         guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US")),
-              recognizer.isAvailable, recognizer.supportsOnDeviceRecognition else { return }
+              recognizer.isAvailable, recognizer.supportsOnDeviceRecognition else {
+            BLog.log("WakeWord: on-device recognizer unavailable — checking again in 30s")
+            scheduleRestart(after: 30, generation: gen)
+            return
+        }
 
         audioEngine = AVAudioEngine()
         let inputNode = audioEngine.inputNode
@@ -71,6 +81,7 @@ final class WakeWordService {
         // 0 Hz / 0 channels happens during audio-device transitions (see
         // AudioInputService) — wait one beat and try again.
         guard format.sampleRate > 0, format.channelCount > 0 else {
+            BLog.log("WakeWord: input device in transition (0 Hz) — retrying in 2s")
             scheduleRestart(after: 2, generation: gen)
             return
         }
@@ -111,11 +122,15 @@ final class WakeWordService {
         }
 
         let timer = Timer(timeInterval: sessionLifetime, repeats: false) { [weak self] _ in
-            Task { @MainActor in self?.startSession() }
+            Task { @MainActor in
+                BLog.log("WakeWord: recycling session")
+                self?.startSession()
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         recycleTimer = timer
         sessionStartedAt = Date()
+        BLog.log("WakeWord: session #\(gen) listening")
     }
 
     /// Long-silence deaths are normal churn (restart soon); instant deaths
