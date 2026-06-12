@@ -30,6 +30,12 @@ final class OllamaService: ChatProvider {
 
     CLIPBOARD: When the user says "what I copied", "this text", "my clipboard", or asks to summarize/translate/rewrite/explain something they copied, you MUST call read_clipboard FIRST to get the actual content, then do the task. Never assume the content.
 
+    STAY ON TARGET:
+    - Decide the goal once, then finish it. Before EVERY tool call ask yourself: does the latest see_screen already show the goal achieved, or the exact element to click next? If achieved → stop and confirm in one sentence. If the element is visible → click it. Never restart, re-search, or switch strategies when you are already on the right page.
+    - web_search is ONLY for answering knowledge questions in words. NEVER call web_search (or open google.com/bing.com) in the middle of an on-screen task like playing music or operating an app — the answer is on the screen, not the web.
+    - When picking from results, click the element whose label matches the requested name (artist/song/app) most exactly — never a random or merely similar item. If nothing matches, say so instead of clicking something else.
+    - On an artist page, "play X" is completed by clicking its Play/Shuffle button or the first song row — do not navigate further.
+
     ABSOLUTELY CRITICAL — NEVER HALLUCINATE:
     - You may ONLY report information that a tool actually returned in this conversation. NEVER invent, guess, assume, or make up events, names, times, numbers, emails, file names, or any content.
     - To read or summarize ANYTHING on screen (calendar, email, a page, a list), you MUST first call see_screen, and if it returns no useful content, call look_closely (a real screenshot). Then report ONLY the exact text those tools returned.
