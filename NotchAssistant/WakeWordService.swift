@@ -25,6 +25,7 @@ final class WakeWordService {
     private var recognitionTask: SFSpeechRecognitionTask?
     private var tapInstalled = false
     private var recycleTimer: Timer?
+    private var configChangeObserver: NSObjectProtocol?
 
     /// Desired state: restarts and recycles only continue while true.
     private var shouldRun = false
@@ -132,6 +133,20 @@ final class WakeWordService {
         }
         RunLoop.main.add(timer, forMode: .common)
         recycleTimer = timer
+
+        // Input device switches (AirPods connect/disconnect) leave this
+        // engine feeding silence with no error — rebuild on the new default.
+        configChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: audioEngine,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.shouldRun, self.generation == gen else { return }
+                BLog.log("WakeWord: engine configuration changed (device switch) — rebuilding")
+                self.scheduleRestart(after: 0.5, generation: gen)
+            }
+        }
         sessionStartedAt = Date()
         BLog.log("WakeWord: session #\(gen) listening")
     }
@@ -161,6 +176,10 @@ final class WakeWordService {
     private func teardownSession() {
         recycleTimer?.invalidate()
         recycleTimer = nil
+        if let observer = configChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            configChangeObserver = nil
+        }
         recognitionTask?.cancel()
         recognitionTask = nil
         recognitionRequest = nil

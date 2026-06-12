@@ -349,7 +349,13 @@ final class AppState: ObservableObject {
         case .failure(let error):
             // Dead input stream (Bluetooth handoff): rebuild the whole
             // capture engine — the session "worked", it just heard a corpse.
-            if case AudioInputService.AudioInputError.deadInput = error, listenRetries < 3 {
+            if case AudioInputService.AudioInputError.deadInput = error {
+                guard listenRetries < 3 else {
+                    // Three rebuilds, still silence: stop pretending. Say it.
+                    BLog.log("AppState: dead input persisted after 3 rebuilds — giving up loudly")
+                    notify("I'm getting silence from the microphone. If you just switched audio devices, try again in a second — otherwise check System Settings → Sound → Input.")
+                    return
+                }
                 listenRetries += 1
                 BLog.log("AppState: dead input — rebuilding capture (retry \(listenRetries)/3, holdMode=\(lastHoldMode))")
                 Task { [weak self] in
@@ -365,10 +371,13 @@ final class AppState: ObservableObject {
             // vanishes" glitch. Retry a few times with a brief settle.
             if Date().timeIntervalSince(listenStartedAt) < 1.5, listenRetries < 3 {
                 listenRetries += 1
-                NSLog("Recognizer died instantly (\(error.localizedDescription)) — retry \(listenRetries)/3")
+                BLog.log("AppState: recognizer died instantly (\(error.localizedDescription)) — retry \(listenRetries)/3")
                 Task { [weak self] in
                     try? await Task.sleep(for: .milliseconds(250))
-                    self?.startListening(isRetry: true)
+                    // The user may have cancelled or started something else
+                    // meanwhile — never spawn a session behind their back.
+                    guard let self, self.state == .listening else { return }
+                    self.startListening(isRetry: true, holdMode: self.lastHoldMode)
                 }
                 return
             }

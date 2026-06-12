@@ -38,6 +38,7 @@ final class AudioInputService: NSObject {
     private var completion: ((Result<String, Error>) -> Void)?
     private var tapInstalled = false
     private var finalizeFallback: DispatchWorkItem?
+    private var configChangeObserver: NSObjectProtocol?
 
     // Voice-activity endpointing
     private var endpointTimer: Timer?
@@ -96,6 +97,25 @@ final class AudioInputService: NSObject {
         // briefly reports 0 Hz or 0 channels and engine start would throw.
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw AudioInputError.noInputDevice
+        }
+
+        // The input device can vanish mid-session (AirPods disconnect):
+        // the engine then feeds silence forever without erroring. macOS
+        // announces it via this notification — treat it as a dead input so
+        // the caller rebuilds against the new default device.
+        configChangeObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: audioEngine,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, self.isListening else { return }
+            BLog.log("AudioInput: engine configuration changed (device switch) — rebuilding")
+            if self.latestTranscript.isEmpty {
+                self.finish(.failure(AudioInputError.deadInput))
+            } else {
+                // Already heard something — deliver it rather than losing it.
+                self.finish(.success(self.latestTranscript))
+            }
         }
 
         let request = SFSpeechAudioBufferRecognitionRequest()
@@ -238,6 +258,7 @@ final class AudioInputService: NSObject {
     /// Tears everything down without delivering a transcript.
     func cancelListening() {
         completion = nil
+        removeConfigObserver()
         endpointTimer?.invalidate()
         endpointTimer = nil
         finalizeFallback?.cancel()
@@ -248,6 +269,13 @@ final class AudioInputService: NSObject {
         recognitionRequest = nil
         latestTranscript = ""
         isListening = false
+    }
+
+    private func removeConfigObserver() {
+        if let observer = configChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            configChangeObserver = nil
+        }
     }
 
     private func stopEngine() {
@@ -271,6 +299,7 @@ final class AudioInputService: NSObject {
         case .success(let text): BLog.log("AudioInput: delivering transcript (\(text.count) chars)")
         case .failure(let error): BLog.log("AudioInput: delivering failure: \(error.localizedDescription)")
         }
+        removeConfigObserver()
         self.completion = nil
         endpointTimer?.invalidate()
         endpointTimer = nil
