@@ -239,7 +239,9 @@ enum SettingsKeys {
     static let geminiPlannerModel = "geminiPlannerModel"
     static let allowScreenshots = "allowScreenshots"
 
-    static let defaultPlannerModel = "gemini-2.0-flash"
+    // 2.5-flash-lite: fast, supports function calling, and (unlike 2.0-flash)
+    // has free-tier quota on typical AI Studio keys.
+    static let defaultPlannerModel = "gemini-2.5-flash-lite"
 
     static let defaultBaseURL = "http://localhost:11434"
     static let defaultModel = "qwen2.5:7b"

@@ -24,7 +24,7 @@ final class AppState: ObservableObject {
     /// actually begun capturing (quick hotkey taps) — applied once it starts.
     private var pendingFinalize = false
     private var listenStartedAt = Date.distantPast
-    private var didRetryListen = false
+    private var listenRetries = 0
 
     /// Keep the last 10 user/assistant exchanges in memory.
     private let maxMessages = 20
@@ -228,7 +228,7 @@ final class AppState: ObservableObject {
         interruptActivity()
         cancelAutoHide()
         pendingFinalize = false
-        if !isRetry { didRetryListen = false }
+        if !isRetry { listenRetries = 0 }
         listenStartedAt = Date()
         Task {
             guard await audio.requestPermissions() else {
@@ -328,13 +328,17 @@ final class AppState: ObservableObject {
             state = .idle
             hidePanel()
         case .failure(let error):
-            // Recognizer sessions occasionally die the moment they start
-            // (kAFAssistantError 1101) — that's the "listening flashes then
-            // vanishes" glitch. Retry once, transparently.
-            if Date().timeIntervalSince(listenStartedAt) < 1.5, !didRetryListen {
-                didRetryListen = true
-                NSLog("Recognizer died instantly (\(error.localizedDescription)) — retrying listen")
-                startListening(isRetry: true)
+            // Recognizer sessions sometimes die the moment they start
+            // (kAFAssistantError 1101), usually because TTS hasn't released
+            // the audio route yet — that's the "listening flashes then
+            // vanishes" glitch. Retry a few times with a brief settle.
+            if Date().timeIntervalSince(listenStartedAt) < 1.5, listenRetries < 3 {
+                listenRetries += 1
+                NSLog("Recognizer died instantly (\(error.localizedDescription)) — retry \(listenRetries)/3")
+                Task { [weak self] in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    self?.startListening(isRetry: true)
+                }
                 return
             }
             // Otherwise: almost always "no speech detected" from a too-quick
