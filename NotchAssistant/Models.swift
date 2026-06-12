@@ -293,6 +293,30 @@ enum ToolExecutor {
                 )
             )),
             OllamaTool(function: .init(
+                name: "set_reminder",
+                description: "Schedule a notification that pops up later. Use for reminders and timers, e.g. 'remind me to call mom in 20 minutes' or 'set a timer for 5 minutes'.",
+                parameters: schema(
+                    properties: [
+                        "text": property(description: "What to remind the user about (for a plain timer, use 'Timer done')."),
+                        "minutes": property(type: "number", description: "Minutes from now until it fires. Use fractions for seconds, e.g. 0.5 = 30s."),
+                    ],
+                    required: ["text", "minutes"]
+                )
+            )),
+            OllamaTool(function: .init(
+                name: "read_clipboard",
+                description: "Read the current contents of the macOS clipboard. Use when the user refers to 'what I copied', 'this text', or asks you to summarize/translate/rewrite their clipboard.",
+                parameters: schema(properties: [:], required: [])
+            )),
+            OllamaTool(function: .init(
+                name: "write_clipboard",
+                description: "Replace the macOS clipboard with text, so the user can paste it. Use for 'copy this', or to hand back a rewritten/translated/generated result they can paste anywhere.",
+                parameters: schema(
+                    properties: ["text": property(description: "The text to place on the clipboard.")],
+                    required: ["text"]
+                )
+            )),
+            OllamaTool(function: .init(
                 name: "web_search",
                 description: "Search the web and get the top results as text. Use this whenever the user asks a question whose answer needs current, factual, or external information you don't already know (news, prices, scores, people, definitions, 'look up…', 'search for…', 'what is…'). Then answer from the returned results.",
                 parameters: schema(
@@ -399,6 +423,30 @@ enum ToolExecutor {
             await InputSynthesizer.pressKey(keyCode: code, modifiers: mods)
             try? await Task.sleep(for: .milliseconds(400))
             return "Pressed \(key)."
+
+        case "set_reminder":
+            guard let text = args["text"]?.stringValue, !text.isEmpty else {
+                return "Error: missing reminder text."
+            }
+            guard let minutes = doubleArg(args["minutes"]), minutes > 0 else {
+                return "Error: missing or invalid minutes."
+            }
+            return await ReminderService.schedule(title: "Biscuit", body: text, seconds: minutes * 60)
+
+        case "read_clipboard":
+            let text = await MainActor.run { NSPasteboard.general.string(forType: .string) }
+            guard let text, !text.isEmpty else { return "The clipboard is empty (or has no text)." }
+            return "Clipboard contents:\n\(String(text.prefix(4000)))"
+
+        case "write_clipboard":
+            guard let text = args["text"]?.stringValue, !text.isEmpty else {
+                return "Error: missing text."
+            }
+            await MainActor.run {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            }
+            return "Copied to the clipboard."
 
         case "web_search":
             guard let query = args["query"]?.stringValue, !query.isEmpty else {

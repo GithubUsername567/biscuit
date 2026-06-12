@@ -63,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !PerceptionService.hasPermission {
             PerceptionService.requestPermission()
         }
+        ReminderService.requestAuthorization()
 
         hotkeyManager.start()
         if !hotkeyManager.usingEventTap {

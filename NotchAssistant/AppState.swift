@@ -191,6 +191,9 @@ final class AppState: ObservableObject {
         case "look_closely": return "🔍 looking closely"
         case "click_at": return "🖱️ clicking"
         case "web_search": return "🌐 searching the web"
+        case "set_reminder": return "⏰ setting a reminder"
+        case "read_clipboard": return "📋 reading clipboard"
+        case "write_clipboard": return "📋 copying to clipboard"
         default: return "⚙️ \(call.function.name)"
         }
     }
