@@ -70,7 +70,10 @@ final class AudioInputService: NSObject {
         audioEngine = AVAudioEngine()
         let inputNode = audioEngine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else {
+        // Both checks matter: during output-device transitions (e.g. AirPods
+        // flipping between music and mic profiles after TTS) the format
+        // briefly reports 0 Hz or 0 channels and engine start would throw.
+        guard format.sampleRate > 0, format.channelCount > 0 else {
             throw AudioInputError.noInputDevice
         }
 
@@ -110,7 +113,9 @@ final class AudioInputService: NSObject {
             }
         }
 
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
+        // nil format = "whatever the node's format is at tap time", which
+        // survives sample-rate changes between our query above and the tap.
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: nil) { buffer, _ in
             request.append(buffer)
         }
         tapInstalled = true

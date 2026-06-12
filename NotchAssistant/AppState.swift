@@ -248,16 +248,26 @@ final class AppState: ObservableObject {
                     Task { @MainActor in self?.handleTranscription(result) }
                 })
             }
-            do {
+            // Engine start loses to audio-device transitions (AirPods swap
+            // profiles for ~1s after TTS playback) — retry with backoff
+            // instead of giving up after one quick attempt.
+            var lastError: Error?
+            for delayMs in [0, 250, 600, 1200] {
+                if delayMs > 0 {
+                    try? await Task.sleep(for: .milliseconds(delayMs))
+                    guard state == .listening else { return } // user cancelled meanwhile
+                }
                 do {
                     try beginCapture()
+                    lastError = nil
+                    break
                 } catch {
-                    // Engine start can hiccup right after TTS playback —
-                    // one silent retry fixes nearly all of those.
-                    NSLog("startListening first attempt failed: \(error.localizedDescription) — retrying")
-                    try await Task.sleep(for: .milliseconds(300))
-                    try beginCapture()
+                    lastError = error
+                    NSLog("startListening attempt failed: \(error.localizedDescription)")
                 }
+            }
+
+            if lastError == nil {
                 // A release that beat the async start: finalize now.
                 if pendingFinalize {
                     pendingFinalize = false
@@ -266,12 +276,11 @@ final class AppState: ObservableObject {
                     // Give up if we never hear anything.
                     armSilenceTimer(10)
                 }
-            } catch {
+            } else {
                 // Avoid surfacing raw "(com.apple…)" NSError text; show our
                 // own messages, fall back to a clean generic line.
-                let message = (error as? AudioInputService.AudioInputError)?.errorDescription
+                let message = (lastError as? AudioInputService.AudioInputError)?.errorDescription
                     ?? "Couldn't start listening. Try again."
-                NSLog("startListening failed: \(error.localizedDescription)")
                 state = .error(message)
             }
         }
