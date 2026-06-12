@@ -97,6 +97,14 @@ struct OllamaChatRequest: Encodable {
     // Low temperature for reliable tool selection; 8k context so the system
     // prompt and tool schemas never get truncated away (Ollama default 2k did).
     let options: Options?
+    // Keep the model resident between requests — reloading a 9GB model on
+    // Ollama's default 5-minute eviction was most of the perceived slowness.
+    let keepAlive: String?
+
+    enum CodingKeys: String, CodingKey {
+        case model, messages, stream, tools, options
+        case keepAlive = "keep_alive"
+    }
 }
 
 struct OllamaMessage: Codable {

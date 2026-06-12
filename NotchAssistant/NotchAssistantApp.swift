@@ -75,6 +75,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         LaunchAtLogin.set(enabled: UserDefaults.standard.bool(forKey: SettingsKeys.launchAtLogin))
 
+        appState.warmUpModel()
+
         NotificationCenter.default.addObserver(
             forName: UserDefaults.didChangeNotification,
             object: nil,

@@ -231,19 +231,30 @@ final class AppState: ObservableObject {
                 state = .error(AudioInputService.AudioInputError.permissionDenied.errorDescription ?? "Permission denied.")
                 return
             }
-            do {
-                inputText = ""
-                state = .listening
-                try audio.startListening(onPartial: { [weak self] text in
+            inputText = ""
+            state = .listening
+            let beginCapture = { [weak self] in
+                try self?.audio.startListening(onPartial: { text in
                     Task { @MainActor in
                         self?.inputText = text
                         // Auto-send once the user stops talking. 2.2s tolerates
                         // mid-sentence pauses better than shorter windows.
                         self?.armSilenceTimer(2.2)
                     }
-                }, onCompletion: { [weak self] result in
+                }, onCompletion: { result in
                     Task { @MainActor in self?.handleTranscription(result) }
                 })
+            }
+            do {
+                do {
+                    try beginCapture()
+                } catch {
+                    // Engine start can hiccup right after TTS playback —
+                    // one silent retry fixes nearly all of those.
+                    NSLog("startListening first attempt failed: \(error.localizedDescription) — retrying")
+                    try await Task.sleep(for: .milliseconds(300))
+                    try beginCapture()
+                }
                 // A release that beat the async start: finalize now.
                 if pendingFinalize {
                     pendingFinalize = false
@@ -350,6 +361,11 @@ final class AppState: ObservableObject {
     func hidePanel() {
         cancelAutoHide()
         onRequestHide?()
+    }
+
+    /// Pre-load the local model so the first request answers fast.
+    func warmUpModel() {
+        ollama.warmup()
     }
 
     // MARK: - Auto-hide (HUD behavior: pop up, answer, go away)

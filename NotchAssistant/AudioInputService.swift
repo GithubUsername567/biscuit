@@ -27,7 +27,7 @@ final class AudioInputService: NSObject {
         }
     }
 
-    private let audioEngine = AVAudioEngine()
+    private var audioEngine = AVAudioEngine()
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -61,6 +61,10 @@ final class AudioInputService: NSObject {
             throw AudioInputError.recognizerUnavailable
         }
 
+        // Fresh engine per session: a reused engine sometimes refuses to
+        // restart after a capture + TTS playback cycle ("couldn't start
+        // listening" on the second request).
+        audioEngine = AVAudioEngine()
         let inputNode = audioEngine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else {

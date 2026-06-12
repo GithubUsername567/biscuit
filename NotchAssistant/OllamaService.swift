@@ -142,10 +142,31 @@ final class OllamaService: ChatProvider {
                 messages: wireMessages,
                 stream: true,
                 tools: ToolExecutor.tools,
-                options: .init(temperature: 0.2, num_ctx: 8192)
+                options: .init(temperature: 0.2, num_ctx: 8192),
+                keepAlive: "60m"
             )
         )
         return request
+    }
+
+    /// Loads the model into RAM ahead of the first request and pins it for an
+    /// hour, so the first prompt of a session isn't stuck behind a 9GB load.
+    func warmup() {
+        Task.detached(priority: .utility) {
+            let defaults = UserDefaults.standard
+            let model = defaults.string(forKey: SettingsKeys.modelName) ?? SettingsKeys.defaultModel
+            let base = defaults.string(forKey: SettingsKeys.ollamaBaseURL) ?? SettingsKeys.defaultBaseURL
+            guard let baseURL = URL(string: base) else { return }
+            var request = URLRequest(url: baseURL.appendingPathComponent("api/generate"))
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try? JSONSerialization.data(withJSONObject: [
+                "model": model,
+                "keep_alive": "60m",
+            ])
+            _ = try? await URLSession.shared.data(for: request)
+            NSLog("OllamaService: warmed up \(model)")
+        }
     }
 
     // MARK: - ChatProvider
