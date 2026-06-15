@@ -19,6 +19,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.showCompanion) private var showCompanion = true
     @AppStorage(SettingsKeys.wakeWordEnabled) private var wakeWordEnabled = true
     @AppStorage(SettingsKeys.recipesEnabled) private var recipesEnabled = true
+    @AppStorage(SettingsKeys.captionsEnabled) private var captionsEnabled = true
     @AppStorage(SettingsKeys.companionSpecies) private var companionSpecies = CompanionSpecies.shiba.rawValue
     @AppStorage(SettingsKeys.launchAtLogin) private var launchAtLogin = true
     @AppStorage(SettingsKeys.brainMode) private var brainMode = "local"
@@ -172,6 +173,10 @@ struct SettingsView: View {
 
                 Section("Speech") {
                     Toggle("Speak responses", isOn: $ttsEnabled)
+                    Toggle("Show captions on the dog", isOn: $captionsEnabled)
+                    Text("Replies appear as a text bubble by the dog, so you can use Biscuit with the sound off.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Picker("Voice", selection: $voiceIdentifier) {
                         Text("Best Available (auto)").tag("")
                         ForEach(voices, id: \.identifier) { voice in
@@ -294,6 +299,7 @@ struct SettingsView: View {
         companionSpecies = CompanionSpecies.shiba.rawValue
         wakeWordEnabled = true
         recipesEnabled = true
+        captionsEnabled = true
         launchAtLogin = true
         brainMode = "local"
         plannerModel = ""

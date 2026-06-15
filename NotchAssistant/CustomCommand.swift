@@ -11,6 +11,12 @@ struct CustomCommand: Codable, Identifiable, Equatable {
     /// When true the whole utterance must equal the phrase; otherwise the
     /// phrase need only appear (word-bounded) in what the user said.
     var exactMatch: Bool = false
+    /// Set by "watch me do it" capture: the literal tool calls a successful
+    /// run executed. When present these replay directly (token-free) and
+    /// `steps` is just the human-readable description.
+    var capturedCalls: [OllamaToolCall]? = nil
+
+    static func == (lhs: CustomCommand, rhs: CustomCommand) -> Bool { lhs.id == rhs.id }
 
     var stepsText: String {
         get { steps.joined(separator: "\n") }
@@ -96,6 +102,33 @@ enum CustomCommandStore {
             return CustomCommand(phrase: trigger, steps: steps)
         }
         return nil
+    }
+
+    // MARK: - "Watch me do it" capture
+
+    /// Tool calls whose effect is the same on replay. Perception calls
+    /// (see_screen, look_closely) and session-specific clicks (click_element,
+    /// click_at) are excluded — their result depends on the live screen.
+    static let replayableTools: Set<String> = [
+        "open_app", "open_url", "run_applescript", "run_shell",
+        "set_reminder", "type_text", "press_key", "write_clipboard",
+    ]
+
+    /// Parses "save that [as <name>]" / "remember that [as <name>]".
+    /// Returns (name?) when it's a save request, else nil.
+    static func parseSaveRequest(_ raw: String) -> (matched: Bool, name: String?)? {
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"(?i)^\s*(?:save|remember|keep)\s+(?:that|this|it)(?:\s+as\s+(?:a\s+)?(?:shortcut\s+)?(?:called\s+|named\s+)?(.+))?\s*$"#
+        guard let re = try? NSRegularExpression(pattern: pattern),
+              let m = re.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)) else {
+            return nil
+        }
+        var name: String?
+        if m.numberOfRanges > 1, let r = Range(m.range(at: 1), in: text) {
+            let n = cleanTrigger(String(text[r]))
+            name = n.isEmpty ? nil : n
+        }
+        return (true, name)
     }
 
     private static func cleanTrigger(_ s: String) -> String {

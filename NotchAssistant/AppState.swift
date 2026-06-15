@@ -13,6 +13,13 @@ final class AppState: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
     @Published var showSettings = false
+    /// Last spoken reply, shown as a caption so the dog is useful on mute.
+    @Published var caption: String?
+
+    /// The request + tool calls of the last successful model run, kept so the
+    /// user can say "save that" to turn it into a shortcut. Cleared on the
+    /// next unrelated request.
+    private var pendingCapture: (request: String, calls: [OllamaToolCall])?
 
     /// Set by the app delegate so views can ask the floating panel to close.
     var onRequestHide: (@MainActor () -> Void)?
@@ -84,7 +91,23 @@ final class AppState: ObservableObject {
         UserDefaults.standard.object(forKey: SettingsKeys.recipesEnabled) as? Bool ?? true
     }
 
+    var captionsEnabled: Bool {
+        UserDefaults.standard.object(forKey: SettingsKeys.captionsEnabled) as? Bool ?? true
+    }
+
     func send(_ text: String) {
+        // "Save that" turns the last successful run into a shortcut. Read the
+        // pending capture before interruptActivity clears it.
+        if CustomCommandStore.parseSaveRequest(text) != nil, let capture = pendingCapture {
+            let name = CustomCommandStore.parseSaveRequest(text)?.name
+            interruptActivity()
+            cancelAutoHide()
+            messages.append(ChatMessage(role: .user, content: text))
+            state = .processing
+            saveCapture(capture, name: name)
+            return
+        }
+
         interruptActivity()
         cancelAutoHide()
         messages.append(ChatMessage(role: .user, content: text))
@@ -119,6 +142,22 @@ final class AppState: ObservableObject {
     /// runs token-free; otherwise the steps are rejoined and handed to the
     /// model as one instruction.
     private func runCustomCommand(_ command: CustomCommand) {
+        // Captured ("watch me do it") shortcuts replay their literal tool
+        // calls directly — token-free, no planning.
+        if let calls = command.capturedCalls, !calls.isEmpty {
+            BLog.log("CustomCommand: \"\(command.phrase)\" — replaying \(calls.count) captured calls")
+            generationTask = Task { [weak self] in
+                guard let self else { return }
+                for call in calls {
+                    self.messages.append(ChatMessage(role: .tool, content: self.friendlyToolLabel(call)))
+                    _ = await ToolExecutor.execute(call)
+                    if Task.isCancelled { return }
+                }
+                self.presentReply("Done.")
+            }
+            return
+        }
+
         let recipes = command.steps.map { RecipeBook.match($0) }
         guard recipes.allSatisfy({ $0 != nil }) else {
             BLog.log("CustomCommand: \"\(command.phrase)\" has a model step — running via model")
@@ -145,24 +184,55 @@ final class AppState: ObservableObject {
                 }
                 confirmations.append(recipe.confirm(last))
             }
-            self.deliverReply(confirmations.joined(separator: " "))
+            self.presentReply(confirmations.joined(separator: " "))
         }
+    }
+
+    /// Saves the last successful run as a shortcut. Pure-scripting runs store
+    /// their literal tool calls for token-free replay; runs that involved
+    /// on-screen clicks are saved as a model macro (the original request),
+    /// since clicks can't be replayed against a different live screen.
+    private func saveCapture(_ capture: (request: String, calls: [OllamaToolCall]), name: String?) {
+        let phrase = (name ?? capture.request).trimmingCharacters(in: .whitespaces)
+        let hadClicks = capture.calls.contains { ["click_element", "click_at"].contains($0.function.name) }
+        let replayable = capture.calls.filter { CustomCommandStore.replayableTools.contains($0.function.name) }
+
+        let command: CustomCommand
+        if !hadClicks, !replayable.isEmpty {
+            command = CustomCommand(phrase: phrase, steps: [capture.request], capturedCalls: replayable)
+            BLog.log("Capture: saved \"\(phrase)\" — \(replayable.count) replayable calls")
+        } else {
+            command = CustomCommand(phrase: phrase, steps: [capture.request])
+            BLog.log("Capture: saved \"\(phrase)\" — model macro (had clicks)")
+        }
+        pendingCapture = nil
+        CustomCommandStore.add(command)
+        presentReply("Saved as “\(phrase).” Say it any time.")
     }
 
     /// Speaks a canned reply with no model involvement (teaching ack, macro
     /// confirmation). Appends it to history and handles TTS / auto-hide.
     private func finishWithReply(_ reply: String) {
-        generationTask = Task { [weak self] in self?.deliverReply(reply) }
+        generationTask = Task { [weak self] in self?.presentReply(reply) }
     }
 
-    private func deliverReply(_ reply: String) {
+    /// Final delivery for every reply path: records it, shows a caption (so
+    /// the dog is useful on mute), speaks it if TTS is on, otherwise lingers
+    /// long enough to read. `captureHint` appends the "save that" nudge.
+    private func presentReply(_ reply: String, captureHint: Bool = false) {
         messages.append(ChatMessage(role: .assistant, content: reply))
+        if captionsEnabled {
+            caption = captureHint ? reply + "\n— say “save that” to keep it" : reply
+        } else {
+            caption = nil
+        }
         if ttsEnabled {
             state = .responding
             speech.speak(reply)
         } else {
             state = .idle
-            scheduleAutoHide(after: 3)
+            // ~1s per 12 chars so a muted user can actually read it.
+            scheduleAutoHide(after: min(max(Double(reply.count) / 12.0, 4), 12))
         }
     }
 
@@ -185,15 +255,7 @@ final class AppState: ObservableObject {
                     return
                 }
             }
-            let reply = recipe.confirm(lastResult)
-            self.messages.append(ChatMessage(role: .assistant, content: reply))
-            if self.ttsEnabled {
-                self.state = .responding
-                self.speech.speak(reply)
-            } else {
-                self.state = .idle
-                self.scheduleAutoHide(after: 3)
-            }
+            self.presentReply(recipe.confirm(lastResult))
         }
     }
 
@@ -202,6 +264,7 @@ final class AppState: ObservableObject {
     private func runModelLoop() {
         let maxToolRounds = 12 // see→act→verify loops need more rounds
         let provider = self.makeProvider()
+        let requestText = messages.last(where: { $0.role == .user })?.content ?? ""
 
         generationTask = Task { [weak self] in
             guard let self else { return }
@@ -209,6 +272,7 @@ final class AppState: ObservableObject {
                 var wire = self.wireHistory()
                 var finalText = ""
                 var rounds = 0
+                var executedCalls: [OllamaToolCall] = []
 
                 while true {
                     var assistantText = ""
@@ -256,6 +320,7 @@ final class AppState: ObservableObject {
                             content: friendlyToolLabel(call)
                         ))
                         let result = await ToolExecutor.execute(call)
+                        executedCalls.append(call)
                         wire.append(OllamaMessage(role: ChatRole.tool.rawValue, content: result, name: call.function.name))
                     }
 
@@ -266,14 +331,15 @@ final class AppState: ObservableObject {
                     }
                 }
 
-                if self.ttsEnabled {
-                    self.state = .responding
-                    self.speech.speak(finalText)
-                    // speech.onFinish returns us to .idle and schedules auto-hide
-                } else {
-                    self.state = .idle
-                    self.scheduleAutoHide(after: 4)
+                // Offer "save that" when the run actually did something
+                // (ignoring pure perception calls).
+                let actionCalls = executedCalls.filter {
+                    $0.function.name != "see_screen" && $0.function.name != "look_closely"
                 }
+                if !actionCalls.isEmpty {
+                    self.pendingCapture = (request: requestText, calls: executedCalls)
+                }
+                self.presentReply(finalText, captureHint: !actionCalls.isEmpty)
             } catch is CancellationError {
                 // cancel() already reset state
             } catch {
@@ -566,6 +632,7 @@ final class AppState: ObservableObject {
             switch self.state {
             case .idle, .error:
                 self.state = .idle
+                self.caption = nil
                 self.onRequestHide?()
             default:
                 break
@@ -576,6 +643,8 @@ final class AppState: ObservableObject {
     private func interruptActivity() {
         generationTask?.cancel()
         generationTask = nil
+        caption = nil
+        pendingCapture = nil
         // Release the wake engine before the capture engine starts; state
         // didSet would stop it anyway, but only after the async start races.
         wakeWord.stop()

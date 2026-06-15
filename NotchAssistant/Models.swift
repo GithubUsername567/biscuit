@@ -242,6 +242,7 @@ enum SettingsKeys {
     static let companionSpecies = "companionSpecies"
     static let recipesEnabled = "recipesEnabled"
     static let customCommands = "customCommands"
+    static let captionsEnabled = "captionsEnabled"
 
     // 2.5-flash-lite: fast, supports function calling, and (unlike 2.0-flash)
     // has free-tier quota on typical AI Studio keys.

@@ -236,14 +236,17 @@ struct CompanionView: View {
     private var bubbleText: String? {
         switch appState.state {
         case .idle:
-            return nil
+            // A just-spoken reply lingers as a caption so the dog is useful
+            // even on mute.
+            return appState.caption
         case .listening:
             let text = appState.inputText
             return text.isEmpty ? "Listening…" : text
         case .processing:
             return "Working…"
         case .responding:
-            return nil
+            // Show the reply text while it speaks (and when muted).
+            return appState.caption
         case .error(let message):
             return message
         }
