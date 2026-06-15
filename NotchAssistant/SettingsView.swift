@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.edgeVoiceName) private var edgeVoiceName = ""
     @AppStorage(SettingsKeys.showCompanion) private var showCompanion = true
     @AppStorage(SettingsKeys.wakeWordEnabled) private var wakeWordEnabled = true
+    @AppStorage(SettingsKeys.recipesEnabled) private var recipesEnabled = true
     @AppStorage(SettingsKeys.companionSpecies) private var companionSpecies = CompanionSpecies.shiba.rawValue
     @AppStorage(SettingsKeys.launchAtLogin) private var launchAtLogin = true
     @AppStorage(SettingsKeys.brainMode) private var brainMode = "local"
@@ -112,6 +113,13 @@ struct SettingsView: View {
                     TextField("Voice ID (blank = Rachel)", text: $elevenLabsVoiceID)
                         .autocorrectionDisabled()
                     Text("Paste a free API key from elevenlabs.io (10k characters/month free). When set, responses use ElevenLabs instead of the system voice.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Fast Commands") {
+                    Toggle("Skip the AI for simple commands", isOn: $recipesEnabled)
+                    Text("Common commands — volume, opening apps, “go to <site>”, timers — run instantly with no AI call (faster, and free even on a paid brain). Anything else still goes to the assistant. Turn off if a command is being misread.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -232,6 +240,7 @@ struct SettingsView: View {
         showCompanion = true
         companionSpecies = CompanionSpecies.shiba.rawValue
         wakeWordEnabled = true
+        recipesEnabled = true
         launchAtLogin = true
         brainMode = "local"
         plannerModel = ""

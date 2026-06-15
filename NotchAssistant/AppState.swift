@@ -80,6 +80,10 @@ final class AppState: ObservableObject {
         send(text)
     }
 
+    var recipesEnabled: Bool {
+        UserDefaults.standard.object(forKey: SettingsKeys.recipesEnabled) as? Bool ?? true
+    }
+
     func send(_ text: String) {
         interruptActivity()
         cancelAutoHide()
@@ -87,6 +91,50 @@ final class AppState: ObservableObject {
         trimHistory()
         state = .processing
 
+        // Fast path: a deterministic recipe answers common commands with no
+        // model round-trip at all. Falls through to the model on no match or
+        // a mid-recipe tool error.
+        if recipesEnabled, let recipe = RecipeBook.match(text) {
+            runRecipe(recipe)
+            return
+        }
+        runModelLoop()
+    }
+
+    /// Runs a matched recipe's tool sequence directly, then speaks its
+    /// templated confirmation — zero model tokens. If any tool reports an
+    /// error, hands the conversation (user message already appended) to the
+    /// model instead.
+    private func runRecipe(_ recipe: RecipeMatch) {
+        BLog.log("Recipe: matched \"\(recipe.name)\" — skipping model")
+        generationTask = Task { [weak self] in
+            guard let self else { return }
+            var lastResult = ""
+            for call in recipe.calls {
+                self.messages.append(ChatMessage(role: .tool, content: self.friendlyToolLabel(call)))
+                lastResult = await ToolExecutor.execute(call)
+                if Task.isCancelled { return }
+                if lastResult.hasPrefix("Error") || lastResult.hasPrefix("Refused") {
+                    BLog.log("Recipe: \"\(recipe.name)\" tool failed — falling back to model")
+                    self.runModelLoop()
+                    return
+                }
+            }
+            let reply = recipe.confirm(lastResult)
+            self.messages.append(ChatMessage(role: .assistant, content: reply))
+            if self.ttsEnabled {
+                self.state = .responding
+                self.speech.speak(reply)
+            } else {
+                self.state = .idle
+                self.scheduleAutoHide(after: 3)
+            }
+        }
+    }
+
+    /// The full agentic model loop. Assumes the user message is already in
+    /// `messages`.
+    private func runModelLoop() {
         let maxToolRounds = 12 // see→act→verify loops need more rounds
         let provider = self.makeProvider()
 
