@@ -91,6 +91,20 @@ final class AppState: ObservableObject {
         trimHistory()
         state = .processing
 
+        // Teaching: "when I say X, do Y" saves a shortcut, no model needed.
+        if let taught = CustomCommandStore.parseTeachRequest(text) {
+            CustomCommandStore.add(taught)
+            BLog.log("CustomCommand: learned \"\(taught.phrase)\" (\(taught.steps.count) steps)")
+            finishWithReply("Learned “\(taught.phrase).” Say it any time.")
+            return
+        }
+
+        // User-taught shortcuts win over built-ins so they can override.
+        if let command = CustomCommandStore.match(text) {
+            runCustomCommand(command)
+            return
+        }
+
         // Fast path: a deterministic recipe answers common commands with no
         // model round-trip at all. Falls through to the model on no match or
         // a mid-recipe tool error.
@@ -99,6 +113,57 @@ final class AppState: ObservableObject {
             return
         }
         runModelLoop()
+    }
+
+    /// Runs a taught shortcut. If every step is recipe-able, the whole macro
+    /// runs token-free; otherwise the steps are rejoined and handed to the
+    /// model as one instruction.
+    private func runCustomCommand(_ command: CustomCommand) {
+        let recipes = command.steps.map { RecipeBook.match($0) }
+        guard recipes.allSatisfy({ $0 != nil }) else {
+            BLog.log("CustomCommand: \"\(command.phrase)\" has a model step — running via model")
+            // Replace the trigger turn with the explicit steps for the model.
+            messages[messages.count - 1].content = command.steps.joined(separator: ", then ")
+            runModelLoop()
+            return
+        }
+
+        BLog.log("CustomCommand: \"\(command.phrase)\" — \(command.steps.count) steps, no model")
+        generationTask = Task { [weak self] in
+            guard let self else { return }
+            var confirmations: [String] = []
+            for recipe in recipes.compactMap({ $0 }) {
+                var last = ""
+                for call in recipe.calls {
+                    self.messages.append(ChatMessage(role: .tool, content: self.friendlyToolLabel(call)))
+                    last = await ToolExecutor.execute(call)
+                    if Task.isCancelled { return }
+                    if last.hasPrefix("Error") || last.hasPrefix("Refused") {
+                        BLog.log("CustomCommand: step failed (\(last.prefix(60)))")
+                        break
+                    }
+                }
+                confirmations.append(recipe.confirm(last))
+            }
+            self.deliverReply(confirmations.joined(separator: " "))
+        }
+    }
+
+    /// Speaks a canned reply with no model involvement (teaching ack, macro
+    /// confirmation). Appends it to history and handles TTS / auto-hide.
+    private func finishWithReply(_ reply: String) {
+        generationTask = Task { [weak self] in self?.deliverReply(reply) }
+    }
+
+    private func deliverReply(_ reply: String) {
+        messages.append(ChatMessage(role: .assistant, content: reply))
+        if ttsEnabled {
+            state = .responding
+            speech.speak(reply)
+        } else {
+            state = .idle
+            scheduleAutoHide(after: 3)
+        }
     }
 
     /// Runs a matched recipe's tool sequence directly, then speaks its

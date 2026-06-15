@@ -26,6 +26,8 @@ struct SettingsView: View {
     @AppStorage(SettingsKeys.allowScreenshots) private var allowScreenshots = true
 
     @State private var micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+    @State private var customCommands: [CustomCommand] = CustomCommandStore.all()
+    @State private var editingCommand: CustomCommand?
 
     private var voices: [AVSpeechSynthesisVoice] {
         AVSpeechSynthesisVoice.speechVoices().sorted {
@@ -124,6 +126,43 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("My Shortcuts") {
+                    if customCommands.isEmpty {
+                        Text("Teach Biscuit your own commands. Say “when I say work mode, open Slack then open Visual Studio Code then set volume to 20”, or add one here.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    ForEach(customCommands) { command in
+                        Button {
+                            editingCommand = command
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(command.phrase.isEmpty ? "(no phrase)" : command.phrase)
+                                        .foregroundStyle(.primary)
+                                    Text(command.steps.joined(separator: " · "))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .onDelete { offsets in
+                        customCommands.remove(atOffsets: offsets)
+                        CustomCommandStore.save(customCommands)
+                    }
+                    Button {
+                        let new = CustomCommand(phrase: "", steps: [])
+                        editingCommand = new
+                    } label: {
+                        Label("Add shortcut", systemImage: "plus")
+                    }
+                }
+
                 Section("Wake Word") {
                     Toggle("Listen for “Biscuit”", isOn: $wakeWordEnabled)
                     Text("Say “Biscuit” any time and the dog pops up listening — no hotkey needed. Detection runs fully on-device; nothing you say leaves this Mac.")
@@ -207,6 +246,20 @@ struct SettingsView: View {
         .frame(width: 440, height: 540)
         .onAppear {
             micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+            customCommands = CustomCommandStore.all()
+        }
+        .sheet(item: $editingCommand) { command in
+            CommandEditor(command: command) { saved in
+                if let saved {
+                    if let i = customCommands.firstIndex(where: { $0.id == saved.id }) {
+                        customCommands[i] = saved
+                    } else {
+                        customCommands.append(saved)
+                    }
+                    CustomCommandStore.save(customCommands)
+                }
+                editingCommand = nil
+            }
         }
     }
 
@@ -245,5 +298,52 @@ struct SettingsView: View {
         brainMode = "local"
         plannerModel = ""
         allowScreenshots = true
+    }
+}
+
+/// Add/edit a single taught shortcut. `onDone` returns the saved command, or
+/// nil if cancelled.
+private struct CommandEditor: View {
+    @State var command: CustomCommand
+    var onDone: (CustomCommand?) -> Void
+
+    @State private var stepsText: String = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Form {
+                Section("Trigger phrase") {
+                    TextField("e.g. work mode", text: $command.phrase)
+                        .autocorrectionDisabled()
+                    Toggle("Match the whole phrase exactly", isOn: $command.exactMatch)
+                    Text("When off, the shortcut fires whenever the phrase appears in what you say.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Section("Steps — one command per line") {
+                    TextEditor(text: $stepsText)
+                        .font(.body.monospaced())
+                        .frame(minHeight: 120)
+                    Text("Each line is a command Biscuit already understands, e.g. “open Slack”, “go to gmail.com”, “set volume to 20”. Lines that are simple run instantly; anything else uses the assistant.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                Button("Cancel") { onDone(nil) }
+                Spacer()
+                Button("Save") {
+                    command.stepsText = stepsText
+                    onDone(command)
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(command.phrase.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(12)
+        }
+        .frame(width: 380, height: 420)
+        .onAppear { stepsText = command.stepsText }
     }
 }
