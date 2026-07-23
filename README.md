@@ -17,7 +17,7 @@ Brand kit + website: [`branding/`](branding/) · Site: `branding/website/index.h
 
 ## Install
 
-**Option A — download.** Grab the `.dmg` from [Releases](https://github.com/GithubUsername567/biscuit/releases), drag Biscuit to Applications. The app isn't notarized yet, so the first launch needs a right-click → Open (or `xattr -dr com.apple.quarantine /Applications/Biscuit.app`).
+**Option A — download (nothing else to install).** Grab the `.dmg` from [Releases](https://github.com/GithubUsername567/biscuit/releases), drag Biscuit to Applications, open it. The Ollama runtime ships inside the app — Biscuit starts the server itself and downloads the local model (~4.7 GB) on first run, showing progress. No Homebrew, no `ollama serve`, no manual pull. The app isn't notarized yet, so the first launch needs a right-click → Open (or `xattr -dr com.apple.quarantine /Applications/Biscuit.app`).
 
 **Option B — build from source.**
 
@@ -27,17 +27,9 @@ cd biscuit
 open NotchAssistant.xcodeproj   # then ⌘R in Xcode
 ```
 
-Builds with ad-hoc signing out of the box; set your team in *Signing & Capabilities* if you prefer.
+Builds with ad-hoc signing out of the box; set your team in *Signing & Capabilities* if you prefer. From source, Biscuit falls back to any `ollama` already on your PATH (`brew install ollama`), or run `./release.sh` to produce a `.dmg` with the runtime bundled in.
 
-**The brain (either option, free, local):**
-
-```sh
-brew install ollama
-ollama pull qwen2.5:7b
-ollama serve
-```
-
-Or skip Ollama entirely: paste a free [Google AI Studio key](https://aistudio.google.com/apikey) in Settings and pick the Capable brain.
+Prefer the cloud? Paste a free [Google AI Studio key](https://aistudio.google.com/apikey) in Settings and pick the Capable brain — no local model needed.
 
 ## Usage
 

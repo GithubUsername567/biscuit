@@ -261,7 +261,7 @@ final class AppState: ObservableObject {
 
     /// The full agentic model loop. Assumes the user message is already in
     /// `messages`.
-    private func runModelLoop() {
+    private func runModelLoop(isRetry: Bool = false) {
         let maxToolRounds = 12 // see→act→verify loops need more rounds
         let provider = self.makeProvider()
         let requestText = messages.last(where: { $0.role == .user })?.content ?? ""
@@ -343,6 +343,12 @@ final class AppState: ObservableObject {
             } catch is CancellationError {
                 // cancel() already reset state
             } catch {
+                // Self-heal the two common local-backend failures once, then
+                // retry the same turn instead of surfacing a dead-end error.
+                if !isRetry, let recovered = await self.recoverFromOllamaError(error), recovered {
+                    self.runModelLoop(isRetry: true)
+                    return
+                }
                 let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
                 self.reportError(message)
             }
@@ -592,6 +598,29 @@ final class AppState: ObservableObject {
         scheduleAutoHide(after: 10)
     }
 
+    /// Tries to fix a failed local-backend turn without bothering the user:
+    /// starts the Ollama server if it's down, or downloads the model if it's
+    /// missing. Returns true when it healed something (caller should retry),
+    /// false when it tried and failed, nil when the error isn't one we handle.
+    private func recoverFromOllamaError(_ error: Error) async -> Bool? {
+        guard let ollamaError = error as? OllamaError else { return nil }
+        switch ollamaError {
+        case .notRunning:
+            state = .processing
+            caption = "Starting Biscuit’s brain…"
+            return await OllamaLauncher.shared.ensureServerRunning()
+        case .modelNotFound(let model):
+            guard await OllamaLauncher.shared.ensureServerRunning() else { return false }
+            state = .processing
+            caption = "Setting up the model (first run)…"
+            return await OllamaLauncher.shared.pullModel(model) { [weak self] progress in
+                Task { @MainActor in self?.caption = progress }
+            }
+        default:
+            return nil
+        }
+    }
+
     /// Errors must be audible now that work happens without the panel.
     private func reportError(_ message: String) {
         state = .error(message)
@@ -612,9 +641,13 @@ final class AppState: ObservableObject {
         onRequestHide?()
     }
 
-    /// Pre-load the local model so the first request answers fast.
+    /// Pre-load the local model so the first request answers fast. Starts the
+    /// Ollama server on the user's behalf if it isn't already running.
     func warmUpModel() {
-        ollama.warmup()
+        Task {
+            await OllamaLauncher.shared.ensureServerRunning()
+            self.ollama.warmup()
+        }
     }
 
     // MARK: - Auto-hide (HUD behavior: pop up, answer, go away)
